@@ -16,3 +16,7 @@ python download_assets/random_samples.py # saves 3d models in USERNAME/.objavers
 mkdir output
 python rendering/render_all_models.py --save_folder /home/jtremblay/code/mvs_objaverse/output/ --folder_assets /home/jtremblay/.objaverse/hf-objaverse-v1/glbs/ --blender_root /home/jtremblay/Desktop/blender-3.2.0-alpha+master.e2e4c1daaa47-linux.x86_64-release/blender
 ```
+
+The output from the script is compatible instant-ngp. And here is a sample for the mugs: 
+https://i.imgur.com/O2BrQ2u.jpg
+![renders](https://i.imgur.com/CcdGXJL.jpg)
