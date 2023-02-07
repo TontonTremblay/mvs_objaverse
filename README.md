@@ -18,5 +18,7 @@ python rendering/render_all_models.py --save_folder /home/jtremblay/code/mvs_obj
 ```
 
 The output from the script is compatible instant-ngp. And here is a sample for the mugs: 
-https://i.imgur.com/O2BrQ2u.jpg
 ![renders](https://i.imgur.com/CcdGXJL.jpg)
+
+# TODO 
+- Share some more complete renders (google drive links) 
