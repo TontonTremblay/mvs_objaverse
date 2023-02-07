@@ -20,6 +20,10 @@ parser.add_argument(
     '--format', type=str, default='PNG',
     help='Format of files generated. Either PNG or OPEN_EXR')
 parser.add_argument(
+    '--outf_name', type=str, default=None,
+    help='folder to put things in')
+
+parser.add_argument(
     '--resolution', type=int, default=256,
     help='Resolution of the images.')
 parser.add_argument(
@@ -445,6 +449,8 @@ K = get_calibration_matrix_K_from_blender(bpy.data.cameras[0])
 
 model_identifier = os.path.split(os.path.split(args.obj)[0])[1]
 path = os.path.join(os.path.abspath(args.output_folder), model_identifier)
+if not args.outf_name is None:
+    path = os.path.join(os.path.abspath(args.output_folder), args.outf_name)
 
 to_export = {
     # 'fx': K[0][0],
