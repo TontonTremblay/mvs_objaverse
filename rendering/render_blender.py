@@ -19,9 +19,20 @@ parser.add_argument(
 parser.add_argument(
     '--format', type=str, default='PNG',
     help='Format of files generated. Either PNG or OPEN_EXR')
+
+parser.add_argument(
+    '--input_model', type=str, default='glb',
+    help='glb is the format for objaverse, but we can use [obj,ply,glb]')
 parser.add_argument(
     '--outf_name', type=str, default=None,
     help='folder to put things in')
+
+parser.add_argument(
+    '--use_model_identifier', action='store_true',
+    help='add the name of the folder to the end of the thing.')
+
+
+
 
 parser.add_argument(
     '--resolution', type=int, default=256,
@@ -155,7 +166,32 @@ def get_3x4_RT_matrix_from_blender(cam):
     return RT
 
 # imported_object = bpy.ops.import_scene.obj(filepath=args.obj, use_edges=False, use_smooth_groups=False, split_mode='OFF')
-imported_object = bpy.ops.import_scene.gltf(filepath=args.obj)
+if args.input_model == "glb":
+    imported_object = bpy.ops.import_scene.gltf(filepath=args.obj)
+elif args.input_model == "ply":
+    imported_object = bpy.ops.import_mesh.ply(filepath=args.obj)
+    obj_object = bpy.context.selected_objects[0]
+    print('Imported name:', obj_object.name)
+    bpy.data.objects[obj_object.name].select_set(True)
+    bpy.ops.paint.vertex_paint_toggle()
+
+    #bpy.context.area.ui_type = 'ShaderNodeTree'
+
+    #bpy.ops.material.new()
+
+    mat = bpy.data.materials.get("Material")
+
+    if len(bpy.context.active_object.data.materials) == 0:
+        bpy.context.active_object.data.materials.append(bpy.data.materials['Material'])
+    else:
+        bpy.context.active_object.data.materials[0] = bpy.data.materials['Material']
+    if mat:
+        mat.node_tree.nodes.new("ShaderNodeVertexColor")
+        mat.node_tree.links.new(mat.node_tree.nodes[2].outputs['Color'], mat.node_tree.nodes[1].inputs['Base Color'])
+
+
+else:
+    bpy.ops.import_scene.obj(filepath=args.obj, use_edges=False, use_smooth_groups=False, split_mode='OFF',axis_up='Z')
 
 for this_obj in bpy.data.objects:
     if this_obj.type == "MESH":
@@ -219,14 +255,26 @@ for obj in bpy.data.objects:
 
 
 # white dome light
-world = bpy.data.worlds['World']
-world.use_nodes = True
-bg = world.node_tree.nodes['Background']
-bg.inputs[0].default_value[:3] = (1, 1, 1)
-bg.inputs[1].default_value = 1.0
+# world = bpy.data.worlds['World']
+# world.use_nodes = True
+# bg = world.node_tree.nodes['Background']
+# bg.inputs[0].default_value[:3] = (1, 1, 1)
+# bg.inputs[1].default_value = 1.0
+
+
+# add a light above the object 
+bpy.ops.object.light_add(type='AREA')
+light2 = bpy.data.lights['Area']
+
+light2.energy = 30000
+bpy.data.objects['Area'].location[2] = 0.5
+bpy.data.objects['Area'].scale[0] = 100
+bpy.data.objects['Area'].scale[1] = 100
+bpy.data.objects['Area'].scale[2] = 100
 
 
 # Place camera
+
 cam = scene.objects['Camera']
 cam.location = (0, 1.2, 0)  # radius equals to 1
 cam.data.lens = 35
@@ -417,18 +465,18 @@ def random_sample_sphere(
         to_return.append([x,y,z])
     return to_return
 
-# positions = sphere_renders(
-#       nb_planes = 1, 
-#       nb_circle = 10,
-#       elevation_range = [72,78],
-#       tetha_range = [0,359]
-#   )
+positions = sphere_renders(
+      nb_planes = 1, 
+      nb_circle = args.views,
+      elevation_range = [55,65],
+      tetha_range = [0,359]
+  )
 
-positions = random_sample_sphere(
-        elevation_range = [2,188],
-        tetha_range = [0,360],
-        nb_frames = args.views,
-    )
+# positions = random_sample_sphere(
+#         elevation_range = [2,188],
+#         tetha_range = [0,360],
+#         nb_frames = args.views,
+#     )
 
 # bpy.context.scene.render.filepath = f'{path}/{000}.png'
 
@@ -447,8 +495,12 @@ bpy.context.scene.render.resolution_y = args.resolution
 
 K = get_calibration_matrix_K_from_blender(bpy.data.cameras[0])
 
-model_identifier = os.path.split(os.path.split(args.obj)[0])[1]
-path = os.path.join(os.path.abspath(args.output_folder), model_identifier)
+if args.use_model_identifier:
+    model_identifier = os.path.split(os.path.split(args.obj)[0])[1]
+    path = os.path.join(os.path.abspath(args.output_folder), model_identifier)
+else:
+    path = os.path.abspath(args.output_folder)
+
 if not args.outf_name is None:
     path = os.path.join(os.path.abspath(args.output_folder), args.outf_name)
 
