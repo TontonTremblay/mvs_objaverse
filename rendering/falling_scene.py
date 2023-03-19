@@ -39,6 +39,18 @@ parser.add_argument(
     '--engine', type=str, default='CYCLES',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
+parser.add_argument(
+    '--asset_textures', type=str, default='/home/jtremblay/code/visii_mvs/cco_textures/',
+    help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
+
+parser.add_argument(
+    '--assets_hdri', type=str, default='/home/jtremblay/code/visii_mvs/dome_hdri_haven/',
+    help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
+parser.add_argument(
+    '--save_tmp_blend', type=str, default='',
+    help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
+
+
 argv = sys.argv[sys.argv.index("--") + 1:]
 args = parser.parse_args(argv)
 
@@ -98,7 +110,7 @@ def add_planes():
     bpy.context.object.rigid_body.collision_shape = 'MESH'
 
     # add the texture 
-    texture = glob.glob(f'/home/jtremblay/code/visii_mvs/cco_textures/*/')
+    texture = glob.glob(f'{args.asset_textures}*/')
     texture_random_selection = texture[random.randint(0,len(texture)-1)]
 
     files = glob.glob(texture_random_selection+'/*.jpg')+glob.glob(texture_random_selection+'/*.png')
@@ -737,6 +749,7 @@ def export_to_ndds_file(
         json.dump(dict_out, fp, indent=4, sort_keys=True)
     # return bounding_box
 
+
 #####################################################################################
 #####################################################################################
 #####################################################################################
@@ -791,7 +804,7 @@ bpy.context.scene.cycles.use_denoising = True
 
 
 
-NB_OBJECTS_LOADED = 2
+NB_OBJECTS_LOADED = 5
 NB_OBJECTS_LOADED_OTHERS = 0
 
 enable_cuda_devices()
@@ -800,21 +813,29 @@ enable_cuda_devices()
 # for ob in bpy.context.scene.objects:
 #     ob.select_set(True)
 bpy.ops.object.delete()
+# bpy.ops.objects['Light'].delete()
+bpy.data.objects['Light'].select_set(True)
+bpy.ops.object.delete()
 
 # Import textured mesh
 bpy.ops.object.select_all(action='DESELECT')
+
+bpy.ops.rigidbody.world_add()
+bpy.context.scene.rigidbody_world.enabled = True
 
 if args.input_model == "glb":
     assets_content = glob.glob(f"{args.folder_assets}/*.{args.input_model}")
 
     for i in range(NB_OBJECTS_LOADED): 
         to_load = assets_content[random.randint(0,len(assets_content)-1)]
+        print(to_load)
         imported_object = bpy.ops.import_scene.gltf(filepath=to_load)
-        # bpy.ops.object.select_all(action='DESELECT')
-        bpy.ops.rigidbody.object_add()
-        # bpy.context.object.rigid_body.collision_shape = 'MESH'
-        # bpy.context.object.rigid_body.collision_shape = 'CONVEX_HULL'
-        bpy.context.object.rigid_body.collision_shape = 'BOX'
+
+        for ob in bpy.context.selected_objects:
+            if ob.type == 'MESH':
+                break
+        bpy.ops.rigidbody.object_add({'object': ob})
+        ob.rigid_body.collision_shape = 'BOX'
 
 
 # load some distractors 
@@ -829,20 +850,29 @@ for i in range(NB_OBJECTS_LOADED_OTHERS):
     # bpy.ops.transform.resize(value=(7, 7, 7))
 
 
-"meshes/model.obj"
+# "meshes/model.obj"
 # spread the hammers
+# bpy.context.scene = 'PHYSICS'
+
+
 
 for ob in bpy.context.scene.objects:
     if ob.type == 'MESH':
         ob.rotation_mode = 'XYZ'
         ob.rotation_euler = (random.randint(-100,100),random.randint(-100,100),random.randint(-100,100))
         ob.location = (random.randrange(-5,5),random.randrange(-5,5),random.randrange(4,8))
+        # ob.select_set(True)
+        # bpy.data.scenes['Scene'].rigidbody_world.collection.objects.link(ob)
+        # bpy.ops.rigidbody.object_add()
+
         if 'model' in ob.name:
             s = random.randint(6,10)
             ob.scale = (s,s,s)
-            ob.select_set(True)
-            bpy.ops.rigidbody.objects_add()
-            bpy.context.object.rigid_body.collision_shape = 'BOX'
+            bpy.ops.rigidbody.object_add({'object': ob})
+            ob.rigid_body.collision_shape = 'BOX'
+
+            # bpy.ops.rigidbody.objects_add()
+            # bpy.context.object.rigid_body.collision_shape = 'BOX'
         else:
             obj_to_export.append(ob.name)
 
@@ -859,13 +889,19 @@ bg = world.node_tree.nodes['Background']
 
 node_environment = world.node_tree.nodes.new('ShaderNodeTexEnvironment')
 # Load and assign the image to the node property
-skyboxes = glob.glob(f'/home/jtremblay/code/visii_mvs/dome_hdri_haven/*.hdr')
+skyboxes = glob.glob(f'{args.assets_hdri}/*.hdr')
 skybox_random_selection = skyboxes[random.randint(0,len(skyboxes)-1)]
 
 node_environment.image = bpy.data.images.load(skybox_random_selection) # Relative path
 # node_environment.location = -300,0
 
 world.node_tree.links.new(node_environment.outputs["Color"], bg.inputs["Color"])
+
+# for scene in bpy.ops.scenes.keys():
+    # print(scene)
+# print()
+
+# raise()
 
 
 
@@ -894,6 +930,38 @@ for i in range(200):
 # scene.frame_set(100)
 
 # bpy.data.scenes['Scene'].frame_set(100)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -950,8 +1018,10 @@ for i_pos, pos in enumerate(positions_to_render):
 # print(positions_to_render)
 
 # Place camera
-bpy.ops.wm.save_as_mainfile(filepath="/home/jtremblay/test.blend")
-# raise()
+
+
+
+
 cam = scene.objects['Camera']
 cam.location = (0, 1.2, 0)  # radius equals to 1
 cam.data.lens = 35
@@ -1006,38 +1076,76 @@ to_export = {
 }
 
 
-class set_inst_material(StatuRecover):
-    def __init__(self):
-        StatuRecover.__init__(self)
 
-        self.set_attr(bpy.data.worlds[0], "use_nodes", False)
-        objs = {
-            obj.name: obj for obj in bpy.data.objects if obj.type in ("MESH", "CURVE")
-        }
-        id_data_to_inst_id = {}
-        for obj_idx, obj in enumerate(objs.values()):
-            inst_id = obj.get("inst_id", 0)  # default inst_id is 0
-            if obj.data.id_data in id_data_to_inst_id:
-                v = id_data_to_inst_id[obj.data.id_data]
-                assert (
-                    v[1] == inst_id
-                ), f'objects["{v[0]}"] and objects["{obj.name}"] have same obj.data, but different inst_id number {(v[1], inst_id)}. May fix by obj2.data=obj1.data.copy()'
-            id_data_to_inst_id[obj.data.id_data] = obj.name, inst_id
-            color = tuple(encode_inst_id.id_to_rgb(inst_id)) + (1,)
 
-            material_name = f"auto.inst_material.{inst_id}"
-            if bpy.data.materials.get(material_name) is None:
-                material = bpy.data.materials.new(material_name)
-                material["is_auto"] = True
-                material.use_nodes = True
-                material.node_tree.nodes.clear()
-                material.name = material_name
-                with activate_node_tree(material.node_tree):
-                    Node("ShaderNodeOutputMaterial").Surface = Node(
-                        "ShaderNodeEmission", Color=color
-                    ).Emission
-            material = bpy.data.materials[material_name]
-            self.replace_collection(obj.data.materials, [material])
+##### CREATE A new scene for segmentation rendering 
+result = bpy.ops.scene.new(type='FULL_COPY')
+bpy.context.scene.name = "segmentation"
+
+
+# lets update all the materials of the objects to emmissive
+to_change = []
+for ob in bpy.context.scene.objects:
+    if ob.type == 'MESH':
+        to_change.append(ob)
+
+def _colorize_object(obj: bpy.types.Object, color: mathutils.Vector, use_alpha_channel: bool):
+    """ Adjusts the materials of the given object, s.t. they are ready for rendering the seg map.
+    This is done by replacing all nodes just with an emission node, which emits the color corresponding to the
+    category of the object.
+    :param obj: The object to use.
+    :param color: RGB array of a color in the range of [0, self.render_colorspace_size_per_dimension].
+    :param use_alpha_channel: If true, the alpha channel stored in .png textures is used.
+    """
+    # Create new material emitting the given color
+    new_mat = bpy.data.materials.new(name="segmentation")
+    new_mat.use_nodes = True
+    # sampling as light,conserves memory, by not keeping a reference to it for multiple importance sampling.
+    # This shouldn't change the results because with an emission of 1 the colorized objects aren't emitting light.
+    # Also, BlenderProc's segmap render settings are configured so that there is only a single sample to distribute,
+    # multiple importance shouldn't affect the noise of the render anyway.
+    # This fixes issue #530
+    new_mat.cycles.sample_as_light = False
+    nodes = new_mat.node_tree.nodes
+    links = new_mat.node_tree.links
+    emission_node = nodes.new(type='ShaderNodeEmission')
+    # output = nodes.new('OutputMaterial')
+    output = nodes.get("Material Output")
+
+    emission_node.inputs['Color'].default_value[:3] = color
+    links.new(emission_node.outputs['Emission'], output.inputs['Surface'])
+
+    # Set material to be used for coloring all faces of the given object
+    if len(obj.material_slots) > 0:
+        for i, material_slot in enumerate(obj.material_slots):
+            if use_alpha_channel:
+                obj.data.materials[i] = MaterialLoaderUtility.add_alpha_texture_node(material_slot.material,
+                                                                                     new_mat)
+            else:
+                obj.data.materials[i] = new_mat
+    else:
+        obj.data.materials.append(new_mat)
+
+
+import colorsys
+for ob in to_change:
+
+    c = colorsys.hsv_to_rgb(
+        random.randrange(0,255)/255, 
+        random.randrange(200,255)/255, 
+        random.randrange(200,255)/255
+        )
+    print(c)
+    # c = [c[0]/255.0,c[1]/255.0,c[2]/255.0]
+    # print(c)
+    _colorize_object(ob,c,False)
+
+
+
+bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
+raise()
+
+
 
 frames = []
 obj_camera = cam
@@ -1052,17 +1160,18 @@ for i_pos, look_data in enumerate(look_at_trans):
     look_at(obj_camera,look_data['eye'])
 
     bpy.context.view_layer.update()
-    export_to_ndds_file(
-        f"{path}/{str(i_pos).zfill(5)}.json",
-        obj_names = ,
-        width = args.resolution,
-        height = args.resolution,
-        camera_name = 'camera',
-        cuboids = cuboids,
-        camera_struct = camera_struct,
-        segmentation_mask = np.array(segmentation_array).reshape(cfg.height,cfg.width,4)[:,:,0],
-        scene_aabb = scene_aabb,
-    )
+
+    # export_to_ndds_file(
+    #     f"{path}/{str(i_pos).zfill(5)}.json",
+    #     obj_names = ,
+    #     width = args.resolution,
+    #     height = args.resolution,
+    #     camera_name = 'camera',
+    #     cuboids = cuboids,
+    #     camera_struct = camera_struct,
+    #     segmentation_mask = np.array(segmentation_array).reshape(cfg.height,cfg.width,4)[:,:,0],
+    #     scene_aabb = scene_aabb,
+    # )
     
 
     rt = get_3x4_RT_matrix_from_blender(obj_camera)
