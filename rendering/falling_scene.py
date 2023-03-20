@@ -485,39 +485,22 @@ def look_at(obj, target, roll=0):
 
 def export_to_ndds_file(
     filename = "tmp.json", #this has to include path as well
-    obj_names = [], # this is a list of ids to load and export
     height = 500, 
     width = 500,
-    camera_name = 'my_camera',
-    cuboids = None,
+    camera_ob = 'my_camera',
     camera_struct = None,
+    data = None,
     segmentation_mask = None,
-    visibility_percentage = False, 
-    scene_aabb = None, #min,max,center 
+    scene_aabb = []
     ):
     # To do export things in the camera frame, e.g., pose and quaternion
 
-    import simplejson as json
 
-    # assume we only use the view camera
-    cam_matrix = visii.entity.get(camera_name).get_transform().get_world_to_local_matrix()
-    
-    # print("get_world_to_local_matrix")
-    # print(cam_matrix)
-    # print('look_at')
-    # print(camera_struct)
-    # print('position')
-    # print(visii.entity.get(camera_name).get_transform().get_position())
-    # # raise()
-    cam_matrix_export = []
-    for row in cam_matrix:
-        cam_matrix_export.append([row[0],row[1],row[2],row[3]])
-    
-    cam_world_location = visii.entity.get(camera_name).get_transform().get_position()
-    cam_world_quaternion = visii.entity.get(camera_name).get_transform().get_rotation()
+    # import simplejson as json
+    import json
     # cam_world_quaternion = visii.quat_cast(cam_matrix)
 
-    cam_intrinsics = visii.entity.get(camera_name).get_camera().get_intrinsic_matrix(width, height)
+    cam_intrinsics = get_calibration_matrix_K_from_blender(camera_ob.data)
 
     if camera_struct is None:
         camera_struct = {
@@ -525,28 +508,24 @@ def export_to_ndds_file(
             'eye': [0,0,0,],
             'up': [0,0,0,]
         }
-    cam2wold = visii.entity.get(camera_name).get_transform().get_local_to_world_matrix()
-    cam2wold_export = []
-    for row in cam2wold:
-        cam2wold_export.append([row[0],row[1],row[2],row[3]])
-    if scene_aabb is None:
-        scene_aabb = [
-            [
-                visii.get_scene_min_aabb_corner()[0],
-                visii.get_scene_min_aabb_corner()[1],
-                visii.get_scene_min_aabb_corner()[2],
-            ],
-            [
-                visii.get_scene_max_aabb_corner()[0],
-                visii.get_scene_max_aabb_corner()[1],
-                visii.get_scene_max_aabb_corner()[2],
-            ],
-            [
-                visii.get_scene_aabb_center()[0],
-                visii.get_scene_aabb_center()[1],
-                visii.get_scene_aabb_center()[2],
-            ]
-        ]
+
+
+    rt = get_3x4_RT_matrix_from_blender(obj_camera)
+    pos, rt, scale = obj_camera.matrix_world.decompose()
+    rt = rt.to_matrix()
+    cam2wold = []
+    for i in range(3):
+        a = []
+        for j in range(3):
+            a.append(rt[i][j])
+        a.append(pos[i])
+        cam2wold.append(a)
+    cam2wold.append([0,0,0,1])
+
+    cam_world_location = obj_camera.location 
+
+    cam_world_quaternion = obj_camera.rotation_euler.to_quaternion()
+
     dict_out = {
                 "camera_data" : {
                     "width" : width,
@@ -569,19 +548,12 @@ def export_to_ndds_file(
                             camera_struct['up'][2],
                         ]
                     },
-                    'camera_view_matrix':cam_matrix_export,
-                    'cam2world':cam2wold_export,
+                    'cam2world':cam2wold,
                     'location_world':
                     [
                         cam_world_location[0],
                         cam_world_location[1],
                         cam_world_location[2],
-                    ],
-                    'quaternion_world_xyzw':[
-                        cam_world_quaternion[0],
-                        cam_world_quaternion[1],
-                        cam_world_quaternion[2],
-                        cam_world_quaternion[3],
                     ],
                     'intrinsics':{
                         'fx':cam_intrinsics[0][0],
@@ -589,166 +561,189 @@ def export_to_ndds_file(
                         'cx':cam_intrinsics[2][0],
                         'cy':cam_intrinsics[2][1]
                     },
-                    'scene_min_3d_box':scene_aabb[0],
-                    'scene_max_3d_box':scene_aabb[1],
-                    'scene_center_3d_box':scene_aabb[2],
+                    # 'scene_min_3d_box':scene_aabb[0],
+                    # 'scene_max_3d_box':scene_aabb[1],
+                    # 'scene_center_3d_box':scene_aabb[2],
                 }, 
                 "objects" : []
             }
 
     # Segmentation id to export
-    id_keys_map = visii.entity.get_name_to_id_map()
+    import bpy_extras
+    for obj_name in data.keys(): 
+        projected_keypoints = []
+        
+        obj = bpy.context.scene.objects[obj_name]
 
-    for obj_name in obj_names: 
+        for keypoint in bpy.context.scene.objects[obj_name].children:
+            if not keypoint.type == "EMPTY":
+                continue
 
-        projected_keypoints, _ = get_cuboid_image_space(obj_name, camera_name=camera_name)
+            co_2d = bpy_extras.object_utils.world_to_camera_view(
+                bpy.context.scene, 
+                camera_ob, 
+                keypoint.matrix_world.translation
+            )
 
-        # put them in the image space. 
-        for i_p, p in enumerate(projected_keypoints):
-            projected_keypoints[i_p] = [p[0]*width, p[1]*height]
-
-        # Get the location and rotation of the object in the camera frame 
-
-
-        trans = visii.transform.get(obj_name)
-        if trans is None: 
-            trans = visii.entity.get(obj_name).get_transform()
-            
-        quaternion_xyzw = visii.inverse(cam_world_quaternion) * trans.get_rotation()
-
-        object_world = visii.vec4(
-            trans.get_position()[0],
-            trans.get_position()[1],
-            trans.get_position()[2],
-            1
-        ) 
-        pos_camera_frame = cam_matrix * object_world
+            # If you want pixel coords
+            render_scale = scene.render.resolution_percentage / 100
+            render_size = (int(scene.render.resolution_x * render_scale),
+                           int(scene.render.resolution_y * render_scale),
+                        )
+            projected_keypoints.append([co_2d.x * render_size[0],height - co_2d.y * render_size[1]])
  
-        if not cuboids is None and obj_name in cuboids:
-            cuboid = cuboids[obj_name]
-        else:
-            cuboid = None
+        cuboid = data[obj_name]['cuboid3d']
 
         #check if the object is visible
         visibility = -1
         bounding_box = [-1,-1,-1,-1]
 
-        if segmentation_mask is None:
-            segmentation_mask = visii.render_data(
-                width=int(width), 
-                height=int(height), 
-                start_frame=0,
-                frame_count=1,
-                bounce=int(0),
-                options="entity_id",
-            )
-            segmentation_mask = np.array(segmentation_mask).reshape(width,height,4)[:,:,0]
-            
-        if visibility_percentage == True and int(id_keys_map [obj_name]) in np.unique(segmentation_mask.astype(int)): 
-            transforms_to_keep = {}
-            
-            for name in id_keys_map.keys():
-                if 'camera' in name.lower() or obj_name in name:
-                    continue
-                trans_to_keep = visii.entity.get(name).get_transform()
-                transforms_to_keep[name]=trans_to_keep
-                visii.entity.get(name).clear_transform()
 
-            # Percentatge visibility through full segmentation mask. 
-            segmentation_unique_mask = visii.render_data(
-                width=int(width), 
-                height=int(height), 
-                start_frame=0,
-                frame_count=1,
-                bounce=int(0),
-                options="entity_id",
-            )
-
-            segmentation_unique_mask = np.array(segmentation_unique_mask).reshape(width,height,4)[:,:,0]
-
-            values_segmentation = np.where(segmentation_mask == int(id_keys_map[obj_name]))[0]
-            values_segmentation_full = np.where(segmentation_unique_mask == int(id_keys_map[obj_name]))[0]
-            visibility = len(values_segmentation)/float(len(values_segmentation_full))
-            
-            # bounding box calculation
-
-            # set back the objects from remove
-            for entity_name in transforms_to_keep.keys():
-                visii.entity.get(entity_name).set_transform(transforms_to_keep[entity_name])
+        # segmentation_mask = np.array(segmentation_mask).reshape(width,height,4)[:,:,0]
+        a = np.array(projected_keypoints)
+        minx = min(a[:,0])
+        miny = min(a[:,1])
+        maxx = max(a[:,0])
+        maxy = max(a[:,1])
+        if (minx>0 and minx<width and miny>0 and miny<height ) or\
+           (maxx>0 and maxx<width and maxy>0 and maxy<height ) or\
+           (minx>0 and minx<width and maxy>0 and maxy<height ) or\
+           (maxx>0 and maxx<width and miny>0 and miny<height ):
+           visibility = 1
         else:
-            # print(np.unique(segmentation_mask.astype(int)))
-            # print(np.isin(np.unique(segmentation_mask).astype(int),
-            #         [int(name_to_id[obj_name])]))
-            try:
-                if int(id_keys_map[obj_name]) in np.unique(segmentation_mask.astype(int)): 
-                    #
-                    visibility = 1
-                    y,x = np.where(segmentation_mask == int(id_keys_map[obj_name]))
-                    bounding_box = [int(min(x)),int(max(x)),height-int(max(y)),height-int(min(y))]
-                else:
-                    visibility = 0
-            except:
-                visibility= -1
+            visibility = 0 
 
-        tran_matrix = trans.get_local_to_world_matrix()
-    
+
+
+        pos, rt, scale = obj.matrix_world.decompose()
+        rt = rt.to_matrix()
         trans_matrix_export = []
-        for row in tran_matrix:
-            trans_matrix_export.append([row[0],row[1],row[2],row[3]])
+        for i in range(3):
+            a = []
+            for j in range(3):
+                a.append(rt[i][j])
+            a.append(pos[i])
+            trans_matrix_export.append(a)
+        trans_matrix_export.append([0,0,0,1])
+        
+        rt = obj_camera.convert_space(matrix=obj.matrix_world, to_space='LOCAL')
+        trans_matrix_cam_export = []
+        for i in range(3):
+            a = []
+            for j in range(3):
+                a.append(rt[i][j])
+            a.append(pos[i])
+            trans_matrix_cam_export.append(a)
+        trans_matrix_cam_export.append([0,0,0,1])
+        
 
         # Final export
         dict_out['objects'].append({
             # 'class':obj_name.split('_')[1],
-            'name':obj_name,
-            'provenance':'visii',
+            'name':obj.name,
+            'provenance':'blender_john',
             # TODO check the location
-            'location': [
-                pos_camera_frame[0],
-                pos_camera_frame[1],
-                pos_camera_frame[2]
-            ],
             'location_world': [
-                trans.get_position()[0],
-                trans.get_position()[1],
-                trans.get_position()[2]
-            ],
-            'quaternion_xyzw':[
-                quaternion_xyzw[0],
-                quaternion_xyzw[1],
-                quaternion_xyzw[2],
-                quaternion_xyzw[3],
-            ],
-            'quaternion_xyzw_world':[
-                trans.get_rotation()[0],
-                trans.get_rotation()[1],
-                trans.get_rotation()[2],
-                trans.get_rotation()[3]
+                obj.location[0],
+                obj.location[1],
+                obj.location[2]
             ],
             'local_to_world_matrix':trans_matrix_export,
+            'trans_in_camera':trans_matrix_cam_export,
             'projected_cuboid':projected_keypoints,
             'local_cuboid': cuboid,
             'visibility':visibility,
-            'bounding_box_minx_maxx_miny_maxy':bounding_box,
+            'bounding_box_minx_maxx_miny_maxy':[minx,maxx,miny,maxy],
         })
-        try:
-            dict_out['objects'][-1]['segmentation_id']=id_keys_map[obj_name]
-        except:
-            dict_out['objects'][-1]['segmentation_id']=-1
+        dict_out['objects'][-1]['segmentation_id']=data[obj_name]["color_seg"]
 
-        try:
-            dict_out['objects'][-1]['mat_metallic']=visii.entity.get(obj_name).get_material().get_metallic()
-            dict_out['objects'][-1]['mat_roughness']=visii.entity.get(obj_name).get_material().get_roughness()
-            dict_out['objects'][-1]['mat_transmission']=visii.entity.get(obj_name).get_material().get_transmission()
-            dict_out['objects'][-1]['mat_sheen']=visii.entity.get(obj_name).get_material().get_sheen()
-            dict_out['objects'][-1]['mat_clearcoat']=visii.entity.get(obj_name).get_material().get_clearcoat()
-            dict_out['objects'][-1]['mat_specular']=visii.entity.get(obj_name).get_material().get_specular()
-            dict_out['objects'][-1]['mat_anisotropic']=visii.entity.get(obj_name).get_material().get_anisotropic()            
-        except:
-            pass            
+
     with open(filename, 'w+') as fp:
         json.dump(dict_out, fp, indent=4, sort_keys=True)
     # return bounding_box
 
+def EmissionColorObj(obj, color):
+    new_mat = bpy.data.materials.new(name="seg")
+    new_mat.use_nodes = True
+    new_mat.cycles.sample_as_light = False
+    emission_node = new_mat.node_tree.nodes.new(type='ShaderNodeEmission')
+    output = new_mat.node_tree.nodes.get("Material Output")
+
+    emission_node.inputs['Color'].default_value[:3] = color
+    new_mat.node_tree.links.new(emission_node.outputs['Emission'], output.inputs['Surface'])
+
+    if len(obj.material_slots) > 0:
+        for imat,mat in enumerate(obj.material_slots):
+                obj.data.materials[imat] = new_mat
+    else:
+        obj.data.materials.append(new_mat)
+
+def AddCuboid(obj_parent): 
+    # find the children
+
+    def get_all_child(ob,to_return = []):
+        if len(ob.children) == 0: 
+            return [ob]
+        to_add = []
+        for child in ob.children:
+            to_add += [ob]
+            to_add += get_all_child(child)
+        return to_add
+
+    mesh_objs = []
+    for obj in get_all_child(obj_parent):
+        print(obj.name,obj.type)
+        if not obj.type == 'MESH':
+            continue
+        mesh_objs.append(obj)
+    
+    corners = []
+    
+    for ob in mesh_objs:
+        print(ob.name)
+        ob.select_set(True)
+        bpy.context.view_layer.objects.active = ob
+        # bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        bbox_corners = [ob.matrix_world @ Vector(corner)  for corner in ob.bound_box]
+        bbox_corners = [Vector(corner)  for corner in ob.bound_box]
+        
+        for corn in bbox_corners:
+            corners.append([corn.x,corn.y,corn.z])
+
+    corners = np.array(corners)
+
+    # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])))
+    # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])))
+    mina = [np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])]
+    maxb = [np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])]
+    # center_point = Vector(((minA.x + maxB.x)/2, (minA.y + maxB.y)/2, (minA.z + maxB.z)/2))
+    center_point = Vector(((mina[0] + maxb[0])/2, (mina[1] + maxb[1])/2, (mina[2] + maxb[2])/2))
+    # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(center_point))
+    # center_point = 
+    dimensions =  Vector((maxb[0] - mina[0], maxb[1] - mina[1], maxb[2] - mina[2]))
+    max_obj = maxb
+    min_obj = mina
+    centroid_obj = center_point
+
+    cuboid = [
+        (max_obj[0], max_obj[1], max_obj[2]),
+        (min_obj[0], max_obj[1], max_obj[2]),
+        (max_obj[0], min_obj[1], max_obj[2]),
+        (max_obj[0], max_obj[1], min_obj[2]),
+        (min_obj[0], min_obj[1], max_obj[2]),
+        (max_obj[0], min_obj[1], min_obj[2]),
+        (min_obj[0], max_obj[1], min_obj[2]),
+        (min_obj[0], min_obj[1], min_obj[2]),
+        (centroid_obj[0], centroid_obj[1], centroid_obj[2]), 
+    ]    
+
+    for ip, p in enumerate(cuboid):
+        bpy.ops.object.empty_add(location=p)
+        ob = bpy.context.object
+        ob.name = f'{ip}_{obj_parent.name}'
+        ob.parent = obj_parent
+
+    return cuboid
 
 #####################################################################################
 #####################################################################################
@@ -823,12 +818,17 @@ bpy.ops.object.select_all(action='DESELECT')
 bpy.ops.rigidbody.world_add()
 bpy.context.scene.rigidbody_world.enabled = True
 
+DATA_2_EXPORT = {}
+
+
+
 if args.input_model == "glb":
     assets_content = glob.glob(f"{args.folder_assets}/*.{args.input_model}")
 
     for i in range(NB_OBJECTS_LOADED): 
         to_load = assets_content[random.randint(0,len(assets_content)-1)]
         print(to_load)
+        name = to_load.split("/")[-1].split(".")[0] + "_" + str(i).zfill(2)
         imported_object = bpy.ops.import_scene.gltf(filepath=to_load)
 
         for ob in bpy.context.selected_objects:
@@ -836,7 +836,11 @@ if args.input_model == "glb":
                 break
         bpy.ops.rigidbody.object_add({'object': ob})
         ob.rigid_body.collision_shape = 'BOX'
-
+        ob.name = name
+        cuboid3d = AddCuboid(ob)
+        DATA_2_EXPORT[ob.name] = {}
+        DATA_2_EXPORT[ob.name]['cuboid3d']=cuboid3d
+        # add the cuboid 
 
 # load some distractors 
 
@@ -927,41 +931,6 @@ for i in range(200):
     bpy.ops.ptcache.bake({"point_cache": point_cache}, bake=True)
     scene.frame_set(i)
     bpy.context.view_layer.update()
-# scene.frame_set(100)
-
-# bpy.data.scenes['Scene'].frame_set(100)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -987,14 +956,15 @@ anchor_points = np.array(anchor_points)
 positions_to_render = Bezier.Curve(t_points, anchor_points) #......................... Returns an array of coordinates.
 
 at_all = []
+at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
+pos = bpy.data.objects[at_name].location
+at = [pos[0],pos[1],pos[2]]
 for i_at in range(len(anchor_points)):
-    # if random.random() < 0.5:
-    #     at = entity_list[np.random.randint(
-    #         0,
-    #         len(entity_list))
-    #     ].get_transform().get_position()
-    #     at = [at[0],at[1],at[2]]
-    at = [0,0,0]
+    if random.random() < 0.5:
+        at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
+        pos = bpy.data.objects[at_name].location
+        at = [pos[0],pos[1],pos[2]]
+    # at = [0,0,0]
     at_all.append(at)
 at_all[-1] = at_all[0]    
 at_all = np.array(at_all)
@@ -1089,45 +1059,8 @@ for ob in bpy.context.scene.objects:
     if ob.type == 'MESH':
         to_change.append(ob)
 
-def _colorize_object(obj: bpy.types.Object, color: mathutils.Vector, use_alpha_channel: bool):
-    """ Adjusts the materials of the given object, s.t. they are ready for rendering the seg map.
-    This is done by replacing all nodes just with an emission node, which emits the color corresponding to the
-    category of the object.
-    :param obj: The object to use.
-    :param color: RGB array of a color in the range of [0, self.render_colorspace_size_per_dimension].
-    :param use_alpha_channel: If true, the alpha channel stored in .png textures is used.
-    """
-    # Create new material emitting the given color
-    new_mat = bpy.data.materials.new(name="segmentation")
-    new_mat.use_nodes = True
-    # sampling as light,conserves memory, by not keeping a reference to it for multiple importance sampling.
-    # This shouldn't change the results because with an emission of 1 the colorized objects aren't emitting light.
-    # Also, BlenderProc's segmap render settings are configured so that there is only a single sample to distribute,
-    # multiple importance shouldn't affect the noise of the render anyway.
-    # This fixes issue #530
-    new_mat.cycles.sample_as_light = False
-    nodes = new_mat.node_tree.nodes
-    links = new_mat.node_tree.links
-    emission_node = nodes.new(type='ShaderNodeEmission')
-    # output = nodes.new('OutputMaterial')
-    output = nodes.get("Material Output")
-
-    emission_node.inputs['Color'].default_value[:3] = color
-    links.new(emission_node.outputs['Emission'], output.inputs['Surface'])
-
-    # Set material to be used for coloring all faces of the given object
-    if len(obj.material_slots) > 0:
-        for i, material_slot in enumerate(obj.material_slots):
-            if use_alpha_channel:
-                obj.data.materials[i] = MaterialLoaderUtility.add_alpha_texture_node(material_slot.material,
-                                                                                     new_mat)
-            else:
-                obj.data.materials[i] = new_mat
-    else:
-        obj.data.materials.append(new_mat)
-
-
 import colorsys
+
 for ob in to_change:
 
     c = colorsys.hsv_to_rgb(
@@ -1135,15 +1068,27 @@ for ob in to_change:
         random.randrange(200,255)/255, 
         random.randrange(200,255)/255
         )
-    print(c)
-    # c = [c[0]/255.0,c[1]/255.0,c[2]/255.0]
-    # print(c)
-    _colorize_object(ob,c,False)
+    if ob.name.split(".")[0] in DATA_2_EXPORT:
+        DATA_2_EXPORT[ob.name.split(".")[0]]['color_seg'] = c
+    EmissionColorObj(ob,c)
 
+nodes = bpy.context.scene.world.node_tree.nodes
+links = bpy.context.scene.world.node_tree.links
+
+c = colorsys.hsv_to_rgb(
+    random.randrange(0,255)/255, 
+    random.randrange(200,255)/255, 
+    random.randrange(200,255)/255
+    )
+c = [c[0],c[1],c[2],1]
+if len(nodes.get("Background").inputs['Color'].links) > 0:
+    links.remove(nodes.get("Background").inputs['Color'].links[0])
+
+nodes.get("Background").inputs['Strength'].default_value = 1
+nodes.get("Background").inputs['Color'].default_value = c 
 
 
 bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
-raise()
 
 
 
@@ -1152,26 +1097,46 @@ obj_camera = cam
 # raise()
 for i_pos, look_data in enumerate(look_at_trans):
     print(look_data)
+
+    bpy.context.window.scene = bpy.data.scenes['segmentation']
+    obj_camera = bpy.context.scene.objects['Camera.001']
     obj_camera.location = (
-        (look_data['eye'][0])+look_data['at'][0],
-        (look_data['eye'][1])+look_data['at'][1],
-        (look_data['eye'][2])+look_data['at'][2]
+        (look_data['eye'][0]),
+        (look_data['eye'][1]),
+        (look_data['eye'][2])
         )
     look_at(obj_camera,look_data['eye'])
 
     bpy.context.view_layer.update()
 
-    # export_to_ndds_file(
-    #     f"{path}/{str(i_pos).zfill(5)}.json",
-    #     obj_names = ,
-    #     width = args.resolution,
-    #     height = args.resolution,
-    #     camera_name = 'camera',
-    #     cuboids = cuboids,
-    #     camera_struct = camera_struct,
-    #     segmentation_mask = np.array(segmentation_array).reshape(cfg.height,cfg.width,4)[:,:,0],
-    #     scene_aabb = scene_aabb,
-    # )
+    # bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.png'
+    # bpy.ops.render.render(write_still = True)    
+
+    
+    bpy.context.window.scene = bpy.data.scenes['Scene']
+    obj_camera = bpy.context.scene.objects['Camera']
+    obj_camera.location = (
+        (look_data['eye'][0]),
+        (look_data['eye'][1]),
+        (look_data['eye'][2])
+        )
+    look_at(obj_camera,look_data['eye'])
+
+    bpy.context.view_layer.update()
+
+    # change the scene 
+
+
+    export_to_ndds_file(
+        f"{path}/{str(i_pos).zfill(3)}.json",
+        width = args.resolution,
+        height = args.resolution,
+        camera_ob = obj_camera,
+        data = DATA_2_EXPORT,
+        camera_struct = look_data,
+        segmentation_mask = f'{path}/{str(i_pos).zfill(3)}_seg.png',
+        scene_aabb = [],
+    )
     
 
     rt = get_3x4_RT_matrix_from_blender(obj_camera)
