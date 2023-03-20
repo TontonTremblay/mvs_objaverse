@@ -47,7 +47,7 @@ parser.add_argument(
     '--assets_hdri', type=str, default='/home/jtremblay/code/visii_mvs/dome_hdri_haven/',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 parser.add_argument(
-    '--save_tmp_blend', type=str, default='',
+    '--save_tmp_blend', type=str, default='/home/jtremblay/code/mvs_objaverse/tmp.blend',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 
@@ -726,15 +726,15 @@ def AddCuboid(obj_parent):
     centroid_obj = center_point
 
     cuboid = [
-        (max_obj[0], max_obj[1], max_obj[2]),
-        (min_obj[0], max_obj[1], max_obj[2]),
         (max_obj[0], min_obj[1], max_obj[2]),
-        (max_obj[0], max_obj[1], min_obj[2]),
         (min_obj[0], min_obj[1], max_obj[2]),
+        (min_obj[0], max_obj[1], max_obj[2]),
+        (max_obj[0], max_obj[1], max_obj[2]),
         (max_obj[0], min_obj[1], min_obj[2]),
-        (min_obj[0], max_obj[1], min_obj[2]),
         (min_obj[0], min_obj[1], min_obj[2]),
-        (centroid_obj[0], centroid_obj[1], centroid_obj[2]), 
+        (min_obj[0], max_obj[1], min_obj[2]),
+        (max_obj[0], max_obj[1], min_obj[2]),
+        (centroid_obj[0], centroid_obj[1], centroid_obj[2]),
     ]    
 
     for ip, p in enumerate(cuboid):
@@ -799,8 +799,8 @@ bpy.context.scene.cycles.use_denoising = True
 
 
 
-NB_OBJECTS_LOADED = 5
-NB_OBJECTS_LOADED_OTHERS = 0
+NB_OBJECTS_LOADED = random.randint(4,8)
+NB_OBJECTS_LOADED_OTHERS = random.randint(5,10)
 
 enable_cuda_devices()
 # context.active_object.select_set(True)
@@ -935,13 +935,14 @@ for i in range(200):
 
 
 # generate camera poses 
+factor = random.randrange(10,15)
 cfg = {}
 cfg['camera_nb_anchor'] = 40
 cfg['camera_elevation_range'] = [0,360]
-cfg['camera_theta_range'] = [30,50]
-cfg['to_add_position'] = [8,8,5]
-cfg['camera_fixed_distance_factor'] = 5
-cfg['camera_nb_frames'] = 300
+cfg['camera_theta_range'] = [20,80]
+cfg['to_add_position'] = [8,0,factor+0.5]
+cfg['camera_fixed_distance_factor'] = factor
+cfg['camera_nb_frames'] = args.views
 cfg = dotdict(cfg)
 
 anchor_points = random_sample_sphere(
@@ -968,6 +969,7 @@ for i_at in range(len(anchor_points)):
     at_all.append(at)
 at_all[-1] = at_all[0]    
 at_all = np.array(at_all)
+# print(at_all)
 at_all = Bezier.Curve(t_points, at_all) #......................... Returns an array of coordinates.
 
 
@@ -1105,7 +1107,7 @@ for i_pos, look_data in enumerate(look_at_trans):
         (look_data['eye'][1]),
         (look_data['eye'][2])
         )
-    look_at(obj_camera,look_data['eye'])
+    look_at(obj_camera,look_data['at'])
 
     bpy.context.view_layer.update()
 

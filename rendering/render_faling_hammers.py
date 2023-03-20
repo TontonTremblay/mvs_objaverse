@@ -22,8 +22,8 @@ import glob
 
 # print(model)
 
-render_cmd = f'{opt.blender_root} -b -P rendering/falling_scene.py -- --folder_assets {opt.folder_assets} --output {opt.save_folder} --views 100 --input_model glb --resolution 512' 
-# > tmp.out'
+render_cmd = f'{opt.blender_root} -b -P rendering/falling_scene.py -- --folder_assets {opt.folder_assets} --output {opt.save_folder} --views 100 --input_model glb --resolution 400' 
+# render_cmd = render_cmd+" > tmp.out"
 
 print(render_cmd)
 os.system(render_cmd)
