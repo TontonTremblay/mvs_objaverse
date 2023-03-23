@@ -453,7 +453,7 @@ def get_calibration_matrix_K_from_blender(camd):
     return K
 
 # function taken from https://blender.stackexchange.com/questions/5210/pointing-the-camera-in-a-particular-direction-programmatically
-def look_at(obj, target, roll=0):
+def LookAt(obj, target, roll=0):
     """
     Rotate obj to look at target
 
@@ -864,7 +864,7 @@ for ob in bpy.context.scene.objects:
     if ob.type == 'MESH':
         ob.rotation_mode = 'XYZ'
         ob.rotation_euler = (random.randint(-100,100),random.randint(-100,100),random.randint(-100,100))
-        ob.location = (random.randrange(-5,5),random.randrange(-5,5),random.randrange(4,8))
+        ob.location = (random.uniform(-5,5),random.uniform(-5,5),random.uniform(4,8))
         # ob.select_set(True)
         # bpy.data.scenes['Scene'].rigidbody_world.collection.objects.link(ob)
         # bpy.ops.rigidbody.object_add()
@@ -935,58 +935,96 @@ for i in range(200):
 
 
 # generate camera poses 
-factor = random.randrange(10,15)
+factor = random.uniform(1,5)
 cfg = {}
-cfg['camera_nb_anchor'] = 40
+cfg['camera_nb_anchor'] = random.randint(30, 100)
 cfg['camera_elevation_range'] = [0,360]
 cfg['camera_theta_range'] = [20,80]
-cfg['to_add_position'] = [8,0,factor+0.5]
+cfg['to_add_position'] = [random.randint(-5, 5),random.randint(-5, 5),factor+0.5]
 cfg['camera_fixed_distance_factor'] = factor
 cfg['camera_nb_frames'] = args.views
 cfg = dotdict(cfg)
 
-anchor_points = random_sample_sphere(
-                        nb_frames = cfg.camera_nb_anchor,
-                        elevation_range = cfg.camera_elevation_range,
-                        tetha_range = cfg.camera_theta_range
-                    )
-anchor_points[-1] = anchor_points[0]
+# anchor_points = random_sample_sphere(
+#                         nb_frames = cfg.camera_nb_anchor,
+#                         elevation_range = cfg.camera_elevation_range,
+#                         tetha_range = cfg.camera_theta_range
+#                     )
+# anchor_points[-1] = anchor_points[0]
 
-t_points = np.arange(0, 1, 1/cfg.camera_nb_frames) #................................. Creates an iterable list from 0 to 1.
-anchor_points = np.array(anchor_points)
-positions_to_render = Bezier.Curve(t_points, anchor_points) #......................... Returns an array of coordinates.
+# t_points = np.arange(0, 1, 1/cfg.camera_nb_frames) #................................. Creates an iterable list from 0 to 1.
+# anchor_points = np.array(anchor_points)
+# positions_to_render = Bezier.Curve(t_points, anchor_points) #......................... Returns an array of coordinates.
 
-at_all = []
-at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
-pos = bpy.data.objects[at_name].location
-at = [pos[0],pos[1],pos[2]]
-for i_at in range(len(anchor_points)):
-    if random.random() < 0.5:
-        at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
-        pos = bpy.data.objects[at_name].location
-        at = [pos[0],pos[1],pos[2]]
-    # at = [0,0,0]
-    at_all.append(at)
-at_all[-1] = at_all[0]    
-at_all = np.array(at_all)
-# print(at_all)
-at_all = Bezier.Curve(t_points, at_all) #......................... Returns an array of coordinates.
+# at_all = []
+# at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
+# pos = bpy.data.objects[at_name].location
+# at = [pos[0],pos[1],pos[2]]
+# for i_at in range(len(anchor_points)):
+#     if random.random() < 0.5:
+#         at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
+#         pos = bpy.data.objects[at_name].location
+#         at = [pos[0],pos[1],pos[2]]
+#     # at = [0,0,0]
+#     at_all.append(at)
+# at_all[-1] = at_all[0]    
+# at_all = np.array(at_all)
+# # print(at_all)
+# at_all = Bezier.Curve(t_points, at_all) #......................... Returns an array of coordinates.
 
 
-# generate the camera poses 
+# # generate the camera poses 
+# look_at_trans = []
+# to_add = [0,0,0]
+# if "to_add_position" in cfg:
+#     to_add = cfg.to_add_position
+# for i_pos, pos in enumerate(positions_to_render):
+#     look_at_trans.append({
+#         'at': at_all[i_pos],
+#         'up': [0,0,1],
+#         'eye': [pos[0]*float(cfg.camera_fixed_distance_factor)+to_add[0],
+#                 pos[1]*float(cfg.camera_fixed_distance_factor)+to_add[1],
+#                 pos[2]*float(cfg.camera_fixed_distance_factor)+to_add[2]]              
+#         }
+#     )
+
+# positions_to_render = random_sample_sphere(
+#                             nb_frames = cfg.camera_nb_frames,
+#                             elevation_range = cfg.camera_elevation_range,
+#                             tetha_range = cfg.camera_theta_range
+#                         )
+positions_to_render = []
+for ipos in range(cfg.camera_nb_frames):
+    positions_to_render.append(
+        [
+            random.uniform(-1,1),
+            random.uniform(-1,1),
+            random.uniform(0,1),
+        ]
+        )    
+
+
 look_at_trans = []
-to_add = [0,0,0]
-if "to_add_position" in cfg:
-    to_add = cfg.to_add_position
-for i_pos, pos in enumerate(positions_to_render):
+for pos in positions_to_render:
+
+    at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
+    pos = bpy.data.objects[at_name].location
+    look_at = [pos[0],pos[1],pos[2]]
+    # raise()
+    # print(look_at)
     look_at_trans.append({
-        'at': at_all[i_pos],
+        'at': look_at,
         'up': [0,0,1],
-        'eye': [pos[0]*float(cfg.camera_fixed_distance_factor)+to_add[0],
-                pos[1]*float(cfg.camera_fixed_distance_factor)+to_add[1],
-                pos[2]*float(cfg.camera_fixed_distance_factor)+to_add[2]]              
-        }
-    )
+        # 'eye': [pos[0]*float(cfg.camera_fixed_distance_factor),
+        #         pos[1]*float(cfg.camera_fixed_distance_factor),
+        #         pos[2]*float(cfg.camera_fixed_distance_factor)]              
+        'eye': [pos[0]*random.uniform(0.3,5),
+                pos[1]*random.uniform(0.3,5),
+                pos[2]*random.uniform(0.2,3)]              
+
+        })
+random.uniform(1,5)               
+print(look_at_trans)
 # print(positions_to_render)
 
 # Place camera
@@ -1066,9 +1104,9 @@ import colorsys
 for ob in to_change:
 
     c = colorsys.hsv_to_rgb(
-        random.randrange(0,255)/255, 
-        random.randrange(200,255)/255, 
-        random.randrange(200,255)/255
+        random.uniform(0,255)/255, 
+        random.uniform(200,255)/255, 
+        random.uniform(200,255)/255
         )
     if ob.name.split(".")[0] in DATA_2_EXPORT:
         DATA_2_EXPORT[ob.name.split(".")[0]]['color_seg'] = c
@@ -1078,9 +1116,9 @@ nodes = bpy.context.scene.world.node_tree.nodes
 links = bpy.context.scene.world.node_tree.links
 
 c = colorsys.hsv_to_rgb(
-    random.randrange(0,255)/255, 
-    random.randrange(200,255)/255, 
-    random.randrange(200,255)/255
+    random.uniform(0,255)/255, 
+    random.uniform(200,255)/255, 
+    random.uniform(200,255)/255
     )
 c = [c[0],c[1],c[2],1]
 if len(nodes.get("Background").inputs['Color'].links) > 0:
@@ -1107,7 +1145,7 @@ for i_pos, look_data in enumerate(look_at_trans):
         (look_data['eye'][1]),
         (look_data['eye'][2])
         )
-    look_at(obj_camera,look_data['at'])
+    LookAt(obj_camera,look_data['at'])
 
     bpy.context.view_layer.update()
 
@@ -1122,7 +1160,7 @@ for i_pos, look_data in enumerate(look_at_trans):
         (look_data['eye'][1]),
         (look_data['eye'][2])
         )
-    look_at(obj_camera,look_data['eye'])
+    LookAt(obj_camera,look_data['at'])
 
     bpy.context.view_layer.update()
 
