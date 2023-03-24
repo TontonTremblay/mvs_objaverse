@@ -6,6 +6,9 @@ import numpy as np
 import json 
 import random 
 import glob 
+# from PIL import Image
+# import png 
+
 
 parser = argparse.ArgumentParser(description='Renders given obj file by rotation a camera around it.')
 parser.add_argument(
@@ -48,6 +51,14 @@ parser.add_argument(
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 parser.add_argument(
     '--save_tmp_blend', type=str, default='/home/jtremblay/code/mvs_objaverse/tmp.blend',
+    help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
+
+parser.add_argument(
+    '--nb_objects_cat', type=int, default=5,
+    help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
+
+parser.add_argument(
+    '--distractors', type=int, default=5,
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 
@@ -798,9 +809,11 @@ bpy.context.scene.cycles.samples = 32
 bpy.context.scene.cycles.use_denoising = True
 
 
+NB_OBJECTS_LOADED = random.randint(max(1,args.nb_objects_cat-2),max(2,args.nb_objects_cat+2))
 
-NB_OBJECTS_LOADED = random.randint(4,8)
-NB_OBJECTS_LOADED_OTHERS = random.randint(5,10)
+NB_OBJECTS_LOADED_OTHERS = 0 
+if args.distractors >0:
+    NB_OBJECTS_LOADED_OTHERS = random.randint(max(1,args.distractors-2),max(2,args.distractors+2))
 
 enable_cuda_devices()
 # context.active_object.select_set(True)
@@ -926,7 +939,8 @@ bpy.context.scene.rigidbody_world.enabled = True
 point_cache = bpy.context.scene.rigidbody_world.point_cache
 point_cache.frame_start = 1
 
-for i in range(200):
+frame_set = 200
+for i in range(frame_set):
     point_cache.frame_end = i
     bpy.ops.ptcache.bake({"point_cache": point_cache}, bake=True)
     scene.frame_set(i)
@@ -1128,13 +1142,43 @@ nodes.get("Background").inputs['Strength'].default_value = 1
 nodes.get("Background").inputs['Color'].default_value = c 
 
 
-bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
 
+
+
+bpy.context.scene.cycles.samples =1
+bpy.context.view_layer.cycles.use_denoising = False
+bpy.context.scene.render.use_motion_blur = False
+bpy.context.scene.render.image_settings.file_format="OPEN_EXR"
+bpy.context.scene.render.image_settings.compression=0
+bpy.context.scene.render.image_settings.color_mode="RGBA"
+bpy.context.scene.render.image_settings.color_depth="32"
+bpy.context.scene.render.image_settings.exr_codec="NONE"
+bpy.context.scene.render.image_settings.use_zbuffer=True
+bpy.context.view_layer.use_pass_z=True
+
+
+bpy.context.scene.use_nodes = True
+tree = bpy.context.scene.node_tree
+links = tree.links
+
+for n in tree.nodes:
+    tree.nodes.remove(n)
+
+# Create input render layer node.
+render_layers = tree.nodes.new('CompositorNodeRLayers')
+
+depth_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
+depth_file_output.label = 'Depth Output'
+links.new(render_layers.outputs['Depth'], depth_file_output.inputs[0])
+depth_file_output.format.file_format = "OPEN_EXR"
+depth_file_output.base_path = f'{path}'
 
 
 frames = []
 obj_camera = cam
 # raise()
+
+bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
 for i_pos, look_data in enumerate(look_at_trans):
     print(look_data)
 
@@ -1148,11 +1192,17 @@ for i_pos, look_data in enumerate(look_at_trans):
     LookAt(obj_camera,look_data['at'])
 
     bpy.context.view_layer.update()
-
-    # bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.png'
-    # bpy.ops.render.render(write_still = True)    
-
+    depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
+    bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
     
+    bpy.ops.render.render(write_still = True)    
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(frame_set-1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr')
+
+    # raise()
+
+
+
+    # render.engine = args.engine
     bpy.context.window.scene = bpy.data.scenes['Scene']
     obj_camera = bpy.context.scene.objects['Camera']
     obj_camera.location = (
