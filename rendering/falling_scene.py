@@ -714,7 +714,7 @@ def AddCuboid(obj_parent):
         print(ob.name)
         ob.select_set(True)
         bpy.context.view_layer.objects.active = ob
-        # bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         bbox_corners = [ob.matrix_world @ Vector(corner)  for corner in ob.bound_box]
         bbox_corners = [Vector(corner)  for corner in ob.bound_box]
         
@@ -854,6 +854,9 @@ if args.input_model == "glb":
         DATA_2_EXPORT[ob.name] = {}
         DATA_2_EXPORT[ob.name]['cuboid3d']=cuboid3d
         # add the cuboid 
+
+bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
+raise()
 
 # load some distractors 
 
