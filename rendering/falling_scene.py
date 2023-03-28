@@ -855,8 +855,8 @@ if args.input_model == "glb":
         DATA_2_EXPORT[ob.name]['cuboid3d']=cuboid3d
         # add the cuboid 
 
-bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
-raise()
+# bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
+# raise()
 
 # load some distractors 
 
@@ -1183,23 +1183,23 @@ obj_camera = cam
 
 bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
 for i_pos, look_data in enumerate(look_at_trans):
-    print(look_data)
+    # print(look_data)
 
-    bpy.context.window.scene = bpy.data.scenes['segmentation']
-    obj_camera = bpy.context.scene.objects['Camera.001']
-    obj_camera.location = (
-        (look_data['eye'][0]),
-        (look_data['eye'][1]),
-        (look_data['eye'][2])
-        )
-    LookAt(obj_camera,look_data['at'])
+    # bpy.context.window.scene = bpy.data.scenes['segmentation']
+    # obj_camera = bpy.context.scene.objects['Camera.001']
+    # obj_camera.location = (
+    #     (look_data['eye'][0]),
+    #     (look_data['eye'][1]),
+    #     (look_data['eye'][2])
+    #     )
+    # LookAt(obj_camera,look_data['at'])
 
-    bpy.context.view_layer.update()
-    depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
-    bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
+    # bpy.context.view_layer.update()
+    # depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
+    # bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
     
-    bpy.ops.render.render(write_still = True)    
-    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(frame_set-1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr')
+    # bpy.ops.render.render(write_still = True)    
+    # os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(frame_set-1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr')
 
     # raise()
 
