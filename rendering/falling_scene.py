@@ -114,8 +114,8 @@ def add_planes():
         location=(0, 0, 0), 
         scale=(1, 1, 1)
     )
-
-    bpy.context.object.scale = (15,15,1)
+    scaling_value = random.uniform(1, 3)
+    bpy.context.object.scale = (scaling_value,scaling_value,1)
     bpy.ops.rigidbody.object_add()
     bpy.context.object.rigid_body.type = 'PASSIVE'
     bpy.context.object.rigid_body.collision_shape = 'MESH'
@@ -192,11 +192,11 @@ def add_planes():
     ob = bpy.ops.mesh.primitive_plane_add(size=2, 
         enter_editmode=False, 
         align='WORLD', 
-        location=(0, -15, 10), 
+        location=(0, -scaling_value, 10), 
         scale=(1, 1, 1)
     )
 
-    bpy.context.object.scale = (15,15,1)
+    bpy.context.object.scale = (scaling_value,scaling_value,1)
     bpy.context.object.rotation_mode = 'XYZ'
     bpy.context.object.rotation_euler = (np.pi/2,0,0)
 
@@ -210,11 +210,11 @@ def add_planes():
     ob = bpy.ops.mesh.primitive_plane_add(size=2, 
         enter_editmode=False, 
         align='WORLD', 
-        location=(0, 15, 10), 
+        location=(0, scaling_value, 10), 
         scale=(1, 1, 1)
     )
 
-    bpy.context.object.scale = (15,15,1)
+    bpy.context.object.scale = (scaling_value,scaling_value,1)
     bpy.context.object.rotation_mode = 'XYZ'
     bpy.context.object.rotation_euler = (np.pi/2,0,0)
 
@@ -228,11 +228,11 @@ def add_planes():
     ob = bpy.ops.mesh.primitive_plane_add(size=2, 
         enter_editmode=False, 
         align='WORLD', 
-        location=(-15, 0, 10), 
+        location=(-scaling_value, 0, 10), 
         scale=(1, 1, 1)
     )
 
-    bpy.context.object.scale = (15,15,1)
+    bpy.context.object.scale = (scaling_value,scaling_value,1)
     bpy.context.object.rotation_mode = 'XYZ'
     bpy.context.object.rotation_euler = (0,np.pi/2,0)
 
@@ -245,11 +245,11 @@ def add_planes():
     ob = bpy.ops.mesh.primitive_plane_add(size=2, 
         enter_editmode=False, 
         align='WORLD', 
-        location=(15, 0, 10), 
+        location=(scaling_value, 0, 10), 
         scale=(1, 1, 1)
     )
 
-    bpy.context.object.scale = (15,15,1)
+    bpy.context.object.scale = (scaling_value,scaling_value,1)
     bpy.context.object.rotation_mode = 'XYZ'
     bpy.context.object.rotation_euler = (0,np.pi/2,0)
 
@@ -861,7 +861,7 @@ if args.input_model == "glb":
 # load some distractors 
 
 obj_to_export = []
-
+pos = 1
 bpy.ops.object.select_all(action='DESELECT')
 assets_content = glob.glob("/media/jtremblay/bf64b840-723c-4e19-9dbc-f6a092b66406/home/jtremblay/data/google_scanned/*/")
 for i in range(NB_OBJECTS_LOADED_OTHERS): 
@@ -880,13 +880,14 @@ for ob in bpy.context.scene.objects:
     if ob.type == 'MESH':
         ob.rotation_mode = 'XYZ'
         ob.rotation_euler = (random.randint(-100,100),random.randint(-100,100),random.randint(-100,100))
-        ob.location = (random.uniform(-5,5),random.uniform(-5,5),random.uniform(4,8))
+        ob.location = (random.uniform(-pos,pos),random.uniform(-pos,pos),random.uniform(pos,pos+2))
         # ob.select_set(True)
         # bpy.data.scenes['Scene'].rigidbody_world.collection.objects.link(ob)
         # bpy.ops.rigidbody.object_add()
 
         if 'model' in ob.name:
-            s = random.randint(6,10)
+            s = random.uniform(0.2,1)
+            s = 1
             ob.scale = (s,s,s)
             bpy.ops.rigidbody.object_add({'object': ob})
             ob.rigid_body.collision_shape = 'BOX'
@@ -1035,9 +1036,9 @@ for pos in positions_to_render:
         # 'eye': [pos[0]*float(cfg.camera_fixed_distance_factor),
         #         pos[1]*float(cfg.camera_fixed_distance_factor),
         #         pos[2]*float(cfg.camera_fixed_distance_factor)]              
-        'eye': [pos[0]*random.uniform(0.3,5),
-                pos[1]*random.uniform(0.3,5),
-                pos[2]*random.uniform(0.2,3)]              
+        'eye': [pos[0]*random.uniform(0.1,1),
+                pos[1]*random.uniform(0.1,1),
+                pos[2]*random.uniform(0.1,1)]              
 
         })
 random.uniform(1,5)               

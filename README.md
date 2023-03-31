@@ -25,7 +25,16 @@ Maybe you want to animate some renders e.g., 360 view.
 
 Check `render_all_models.py`
 
+### Falling scene 
 
+Check `rendering/render_faling_hammers.py`. You are going to need to download the following assets and make sure the paths are set correctly. 
+- [hammer_assets](https://drive.google.com/drive/folders/1eZnGriYr2e8vmUfowo00Uc3VF0OTVXtk?usp=share_link)
+- [HDRI env. map](https://drive.google.com/file/d/1lp36MgTlS4OFaH0vdsTFhyGFJpQDY2YX/view?usp=share_link)
+- [cco textures](https://drive.google.com/file/d/1GWpRqSn_GKn0fwfEHFpQctfEo51KiqbY/view?usp=share_link)
+
+Then you run the script `python rendering/render_faling_hammers.py` with the correct path to the assets and to your blender install. 
+
+If you want to generate a dataset, check `rendering/render_dataset_falling_hammer.py`.
 
 # TODO 
 - Share some more complete renders (google drive links) 
