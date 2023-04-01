@@ -27,6 +27,7 @@ parser.add_argument(
 parser.add_argument(
     '--input_model', type=str, default='glb',
     help='glb is the format for objaverse, but we can use [obj,ply,glb]')
+
 parser.add_argument(
     '--outf_name', type=str, default=None,
     help='folder to put things in')
@@ -119,6 +120,7 @@ def add_planes():
     bpy.ops.rigidbody.object_add()
     bpy.context.object.rigid_body.type = 'PASSIVE'
     bpy.context.object.rigid_body.collision_shape = 'MESH'
+    bpy.context.object.rigid_body.collision_margin = 0
 
     # add the texture 
     texture = glob.glob(f'{args.asset_textures}*/')
@@ -191,6 +193,8 @@ def add_planes():
     # raise()
     bpy.ops.object.mode_set(mode='OBJECT')
 
+    scaling_value *= 0.5
+
     ob = bpy.ops.mesh.primitive_plane_add(size=2, 
         enter_editmode=False, 
         align='WORLD', 
@@ -205,6 +209,7 @@ def add_planes():
     bpy.ops.rigidbody.object_add()
     bpy.context.object.rigid_body.type = 'PASSIVE'
     bpy.context.object.rigid_body.collision_shape = 'MESH'
+    bpy.context.object.rigid_body.collision_margin = 0
     bpy.context.object.hide_render = True
     bpy.context.object.hide_viewport = True
 
@@ -223,6 +228,7 @@ def add_planes():
     bpy.ops.rigidbody.object_add()
     bpy.context.object.rigid_body.type = 'PASSIVE'
     bpy.context.object.rigid_body.collision_shape = 'MESH'
+    bpy.context.object.rigid_body.collision_margin = 0
     bpy.context.object.hide_render = True
     bpy.context.object.hide_viewport = True
 
@@ -241,6 +247,7 @@ def add_planes():
     bpy.ops.rigidbody.object_add()
     bpy.context.object.rigid_body.type = 'PASSIVE'
     bpy.context.object.rigid_body.collision_shape = 'MESH'
+    bpy.context.object.rigid_body.collision_margin = 0
     bpy.context.object.hide_render = True
     bpy.context.object.hide_viewport = True
 
@@ -258,6 +265,7 @@ def add_planes():
     bpy.ops.rigidbody.object_add()
     bpy.context.object.rigid_body.type = 'PASSIVE'
     bpy.context.object.rigid_body.collision_shape = 'MESH'
+    bpy.context.object.rigid_body.collision_margin = 0
     bpy.context.object.hide_render = True
     bpy.context.object.hide_viewport = True
 
@@ -850,7 +858,10 @@ if args.input_model == "glb":
             if ob.type == 'MESH':
                 break
         bpy.ops.rigidbody.object_add({'object': ob})
-        ob.rigid_body.collision_shape = 'BOX'
+        ob.rigid_body.collision_shape = 'CONVEX_HULL'
+        ob.rigid_body.use_margin = True
+        ob.rigid_body.collision_margin = 0
+
         ob.name = name
         cuboid3d = AddCuboid(ob)
         DATA_2_EXPORT[ob.name] = {}
@@ -863,7 +874,7 @@ if args.input_model == "glb":
 # load some distractors 
 
 obj_to_export = []
-pos = 1
+pos = 0.5
 bpy.ops.object.select_all(action='DESELECT')
 assets_content = glob.glob("/media/jtremblay/bf64b840-723c-4e19-9dbc-f6a092b66406/home/jtremblay/data/google_scanned/*/")
 for i in range(NB_OBJECTS_LOADED_OTHERS): 
@@ -882,7 +893,7 @@ for ob in bpy.context.scene.objects:
     if ob.type == 'MESH':
         ob.rotation_mode = 'XYZ'
         ob.rotation_euler = (random.randint(-100,100),random.randint(-100,100),random.randint(-100,100))
-        ob.location = (random.uniform(-pos,pos),random.uniform(-pos,pos),random.uniform(pos,pos+2))
+        ob.location = (random.uniform(-pos,pos),random.uniform(-pos,pos),random.uniform(pos+1,pos+6))
         # ob.select_set(True)
         # bpy.data.scenes['Scene'].rigidbody_world.collection.objects.link(ob)
         # bpy.ops.rigidbody.object_add()
@@ -892,7 +903,9 @@ for ob in bpy.context.scene.objects:
             s = 1
             ob.scale = (s,s,s)
             bpy.ops.rigidbody.object_add({'object': ob})
-            ob.rigid_body.collision_shape = 'BOX'
+            ob.rigid_body.collision_shape = 'CONVEX_HULL'
+            ob.rigid_body.use_margin = True
+            ob.rigid_body.collision_margin = 0
 
             # bpy.ops.rigidbody.objects_add()
             # bpy.context.object.rigid_body.collision_shape = 'BOX'
@@ -933,7 +946,7 @@ world.node_tree.links.new(node_environment.outputs["Color"], bg.inputs["Color"])
 
 # Run the physics simulation
 scene = bpy.context.scene
-scene.frame_set(0)
+# scene.frame_set(0)
 bpy.context.view_layer.update()
 
 # for jj in range(250):
@@ -945,12 +958,15 @@ bpy.context.scene.rigidbody_world.enabled = True
 point_cache = bpy.context.scene.rigidbody_world.point_cache
 point_cache.frame_start = 1
 
-frame_set = 200
+frame_set = 60
 for i in range(frame_set):
     point_cache.frame_end = i
     bpy.ops.ptcache.bake({"point_cache": point_cache}, bake=True)
     scene.frame_set(i)
     bpy.context.view_layer.update()
+
+#
+bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend.replace('.blend','-1.blend')}")
 
 
 
@@ -1021,15 +1037,15 @@ for ipos in range(cfg.camera_nb_frames):
             random.uniform(-1,1),
             random.uniform(0,1),
         ]
-        )    
+    )    
 
 
 look_at_trans = []
 for pos in positions_to_render:
 
     at_name = list(DATA_2_EXPORT.keys())[np.random.randint(0,len(list(DATA_2_EXPORT.keys())))]
-    pos = bpy.data.objects[at_name].location
-    look_at = [pos[0],pos[1],pos[2]]
+    pos_obj= bpy.data.objects[at_name].location
+    look_at = [pos_obj[0],pos_obj[1],pos_obj[2]]
     # raise()
     # print(look_at)
     look_at_trans.append({
@@ -1043,8 +1059,8 @@ for pos in positions_to_render:
                 pos[2]*random.uniform(0.1,1)]              
 
         })
-random.uniform(1,5)               
-print(look_at_trans)
+    print(look_at)
+# raise()
 # print(positions_to_render)
 
 # Place camera
@@ -1110,6 +1126,7 @@ to_export = {
 
 ##### CREATE A new scene for segmentation rendering 
 result = bpy.ops.scene.new(type='FULL_COPY')
+# result = bpy.ops.scene.new(type='LINK_COPY')
 bpy.context.scene.name = "segmentation"
 
 
@@ -1184,7 +1201,12 @@ frames = []
 obj_camera = cam
 # raise()
 
+
+bpy.context.window.scene = bpy.data.scenes['Scene']
+
 bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
+
+
 for i_pos, look_data in enumerate(look_at_trans):
     # print(look_data)
 
