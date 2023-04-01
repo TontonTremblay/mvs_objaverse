@@ -31,6 +31,7 @@ Check `rendering/render_faling_hammers.py`. You are going to need to download th
 - [hammer_assets](https://drive.google.com/drive/folders/1eZnGriYr2e8vmUfowo00Uc3VF0OTVXtk?usp=share_link)
 - [HDRI env. map](https://drive.google.com/file/d/1lp36MgTlS4OFaH0vdsTFhyGFJpQDY2YX/view?usp=share_link)
 - [cco textures](https://drive.google.com/file/d/1GWpRqSn_GKn0fwfEHFpQctfEo51KiqbY/view?usp=share_link)
+- [google scanned assets] ()
 
 Then you run the script `python rendering/render_faling_hammers.py` with the correct path to the assets and to your blender install. 
 
