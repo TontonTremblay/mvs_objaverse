@@ -1238,6 +1238,8 @@ for i_pos, look_data in enumerate(look_at_trans):
         (look_data['eye'][1]),
         (look_data['eye'][2])
         )
+    bpy.context.view_layer.update()
+    
     LookAt(obj_camera,look_data['at'])
 
     bpy.context.view_layer.update()
