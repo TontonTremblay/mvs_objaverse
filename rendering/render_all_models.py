@@ -19,13 +19,17 @@ opt = parser.parse_args()
 import glob 
 data = sorted(glob.glob(f"{opt.folder_assets}/*/"))
 
-for path in data:
-    # path = data[-5]
-    path = sorted(glob.glob(path + "/*.glb"))[0]
+objs = sorted(glob.glob(opt.folder_assets + "/*.glb"))
 
-    render_cmd = '%s -b -P rendering/render_blender.py -- --obj %s --output %s --views 100 --resolution 400 > tmp.out' % (
+for i, path in enumerate(objs):
+    # path = data[-5]
+
+    out_path = os.path.join(opt.save_folder, os.path.basename(path)[:-4])
+    # os.makedirs(out_path, exist_ok=True)
+
+    render_cmd = '%s -b -P rendering/render_blender.py -- --obj %s --output %s --views 1 --resolution 400 > tmp.out' % (
         opt.blender_root, path, opt.save_folder
     )
     print(render_cmd)
     os.system(render_cmd)
-    break
+    

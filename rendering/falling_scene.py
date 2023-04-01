@@ -15,10 +15,10 @@ parser.add_argument(
     '--views', type=int, default=24,
     help='number of views to be rendered')
 parser.add_argument(
-    '--folder_assets', type=str,
+    '--folder_assets', type=str, default='/data/handal_dataset_syn/hammer_syn_models/aligned_obj/',
     help='Path to the obj file to be rendered.')
 parser.add_argument(
-    '--output_folder', type=str, default='/media/jtremblay/bf64b840-723c-4e19-9dbc-f6a092b66406/home/jtremblay/data/shapenet/renders/',
+    '--output_folder', type=str, default='/data/test/syn_hammer',
     help='The path the output will be dumped to.')
 parser.add_argument(
     '--format', type=str, default='PNG',
@@ -36,18 +36,18 @@ parser.add_argument(
     help='add the name of the folder to the end of the thing.')
 
 parser.add_argument(
-    '--resolution', type=int, default=256,
+    '--resolution', type=int, default=1920,
     help='Resolution of the images.')
 parser.add_argument(
     '--engine', type=str, default='CYCLES',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 parser.add_argument(
-    '--asset_textures', type=str, default='/home/jtremblay/code/visii_mvs/cco_textures/',
+    '--asset_textures', type=str, default='/data/handal_dataset_syn/hammer_syn_models/cco_textures/',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 parser.add_argument(
-    '--assets_hdri', type=str, default='/home/jtremblay/code/visii_mvs/dome_hdri_haven/',
+    '--assets_hdri', type=str, default='/data/handal_dataset_syn/hammer_syn_models/dome_hdri_haven/',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 parser.add_argument(
     '--save_tmp_blend', type=str, default='/home/jtremblay/code/mvs_objaverse/tmp.blend',
@@ -122,6 +122,8 @@ def add_planes():
 
     # add the texture 
     texture = glob.glob(f'{args.asset_textures}*/')
+    print("texture",texture)
+    print("args.asset_textures",args.asset_textures)
     texture_random_selection = texture[random.randint(0,len(texture)-1)]
 
     files = glob.glob(texture_random_selection+'/*.jpg')+glob.glob(texture_random_selection+'/*.png')

@@ -566,8 +566,9 @@ for i_pos, pos in enumerate(positions):
         "transform_matrix":matrix
     }
     frames.append(to_add)
+    mesh_name = os.path.basename(args.obj).split('.')[0]
 
-    bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}.png'
+    bpy.context.scene.render.filepath = f'{path}/{str(mesh_name).zfill(3)}.png'
     bpy.ops.render.render(write_still = True)
     # raise()
     # time.sleep(10)
