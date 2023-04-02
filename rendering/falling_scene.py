@@ -51,7 +51,7 @@ parser.add_argument(
     '--assets_hdri', type=str, default='/data/handal_dataset_syn/hammer_syn_models/dome_hdri_haven/',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 parser.add_argument(
-    '--save_tmp_blend', type=str, default='/home/jtremblay/code/mvs_objaverse/tmp.blend',
+    '--save_tmp_blend', type=str, default='/home/andrewg/mvs_objaverse/tmp.blend',
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 parser.add_argument(
@@ -59,7 +59,7 @@ parser.add_argument(
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 parser.add_argument(
-    '--distractors', type=int, default=5,
+    '--distractors', type=int, default=10,
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 
@@ -876,7 +876,8 @@ if args.input_model == "glb":
 obj_to_export = []
 pos = 0.5
 bpy.ops.object.select_all(action='DESELECT')
-assets_content = glob.glob("/media/jtremblay/bf64b840-723c-4e19-9dbc-f6a092b66406/home/jtremblay/data/google_scanned/*/")
+assets_content = glob.glob("/data/handal_dataset_syn/google_scanned/*/")
+print("assets_content",assets_content)
 for i in range(NB_OBJECTS_LOADED_OTHERS): 
     to_load = assets_content[random.randint(0,len(assets_content)-1)]
     imported_object = bpy.ops.import_scene.obj(filepath=f"{to_load}/meshes/model.obj")
@@ -1035,7 +1036,7 @@ for ipos in range(cfg.camera_nb_frames):
         [
             random.uniform(-1,1),
             random.uniform(-1,1),
-            random.uniform(0,1),
+            random.uniform(0.3,1),
         ]
     )    
 
