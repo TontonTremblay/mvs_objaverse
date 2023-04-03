@@ -6,7 +6,7 @@ parser.add_argument(
     '--save_folder', type=str, default='/Users/jtremblay/code/mvs_objaverse/output/tmp/',
     help='path for saving rendered image')
 parser.add_argument(
-    '--folder_assets', type=str, default='/Users/jtremblay/code/mvs_objaverse/assets/handal_hammer_assets/',
+    '--folder_assets', type=str, default='/Users/jtremblay/code/mvs_objaverse/assets/fix_hammers/',
     help='path to downloaded 3d assets')
 parser.add_argument(
     '--blender_root', type=str, default='/Applications/Blender.app/Contents/MacOS/Blender',

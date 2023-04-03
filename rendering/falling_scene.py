@@ -8,7 +8,7 @@ import random
 import glob 
 # from PIL import Image
 # import png 
-
+import threading
 
 parser = argparse.ArgumentParser(description='Renders given obj file by rotation a camera around it.')
 parser.add_argument(
@@ -61,6 +61,15 @@ parser.add_argument(
 parser.add_argument(
     '--distractors', type=int, default=5,
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
+
+parser.add_argument(
+    '--save_segmentation', action="store_true",
+    help='render segmentation as _seg.exr')
+
+parser.add_argument(
+    '--save_depth', action="store_true",
+    help='render depth as _depth.exr')
+
 
 
 argv = sys.argv[sys.argv.index("--") + 1:]
@@ -587,6 +596,14 @@ def export_to_ndds_file(
                 "objects" : []
             }
 
+    # load the segmentation & find unique pixels
+    segmentation_mask = bpy.data.images.load(f'{path}/{str(i_pos).zfill(3)}_seg.exr')
+    segmentation_mask = np.asarray(segmentation_mask.pixels)
+    segmentation_mask = segmentation_mask.reshape((args.resolution,args.resolution,4))[:,:,:3]
+    unique_pixels = np.vstack({tuple(r) for r in segmentation_mask.reshape(-1,3)})
+    unique_pixels = (unique_pixels*255).astype(int)
+
+
     # Segmentation id to export
     import bpy_extras
     for obj_name in data.keys(): 
@@ -618,21 +635,28 @@ def export_to_ndds_file(
         bounding_box = [-1,-1,-1,-1]
 
 
-        # segmentation_mask = np.array(segmentation_mask).reshape(width,height,4)[:,:,0]
+        # Using the bouding box keypoints wont give tight 2d bounding box
+        # use the segmentation mask instead. 
         a = np.array(projected_keypoints)
         minx = min(a[:,0])
         miny = min(a[:,1])
         maxx = max(a[:,0])
         maxy = max(a[:,1])
-        if (minx>0 and minx<width and miny>0 and miny<height ) or\
-           (maxx>0 and maxx<width and maxy>0 and maxy<height ) or\
-           (minx>0 and minx<width and maxy>0 and maxy<height ) or\
-           (maxx>0 and maxx<width and miny>0 and miny<height ):
-           visibility = 1
+
+        # Not working
+        # if (minx>0 and minx<width and miny>0 and miny<height ) or\
+        #    (maxx>0 and maxx<width and maxy>0 and maxy<height ) or\
+        #    (minx>0 and minx<width and maxy>0 and maxy<height ) or\
+        #    (maxx>0 and maxx<width and miny>0 and miny<height ):
+        #    visibility = 1
+        # else:
+        #     visibility = 0 
+
+        color_int = (np.array(data[obj_name]['color_seg'])*255).astype(int)
+        if color_int in unique_pixels:
+            visibility = 1
         else:
-            visibility = 0 
-
-
+            visibility = 0
 
         pos, rt, scale = obj.matrix_world.decompose()
         rt = rt.to_matrix()
@@ -1137,14 +1161,21 @@ for ob in bpy.context.scene.objects:
 import colorsys
 
 for ob in to_change:
-
-    c = colorsys.hsv_to_rgb(
-        random.uniform(0,255)/255, 
-        random.uniform(200,255)/255, 
-        random.uniform(200,255)/255
-        )
-    if ob.name.split(".")[0] in DATA_2_EXPORT:
-        DATA_2_EXPORT[ob.name.split(".")[0]]['color_seg'] = c
+    while True:
+        c = colorsys.hsv_to_rgb(
+            random.uniform(0,255)/255, 
+            random.uniform(200,255)/255, 
+            random.uniform(200,255)/255
+            )
+        found = False
+        for obj in DATA_2_EXPORT:
+            if 'color_seg' in DATA_2_EXPORT[obj] and c == DATA_2_EXPORT[obj]['color_seg']:
+                found = True
+        if found is True:
+            continue
+        if ob.name.split(".")[0] in DATA_2_EXPORT:
+            DATA_2_EXPORT[ob.name.split(".")[0]]['color_seg'] = c
+        break
     EmissionColorObj(ob,c)
 
 nodes = bpy.context.scene.world.node_tree.nodes
@@ -1194,6 +1225,9 @@ links.new(render_layers.outputs['Depth'], depth_file_output.inputs[0])
 depth_file_output.format.file_format = "OPEN_EXR"
 depth_file_output.base_path = f'{path}'
 
+node_viewer = tree.nodes.new('CompositorNodeViewer') 
+node_viewer.use_alpha = False  
+links.new(render_layers.outputs['Image'], node_viewer.inputs[0])
 
 frames = []
 obj_camera = cam
@@ -1208,23 +1242,30 @@ bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
 for i_pos, look_data in enumerate(look_at_trans):
     # print(look_data)
 
-    # bpy.context.window.scene = bpy.data.scenes['segmentation']
-    # obj_camera = bpy.context.scene.objects['Camera.001']
-    # obj_camera.location = (
-    #     (look_data['eye'][0]),
-    #     (look_data['eye'][1]),
-    #     (look_data['eye'][2])
-    #     )
-    # LookAt(obj_camera,look_data['at'])
+    bpy.context.window.scene = bpy.data.scenes['segmentation']
+    obj_camera = bpy.context.scene.objects['Camera.001']
+    obj_camera.location = (
+        (look_data['eye'][0]),
+        (look_data['eye'][1]),
+        (look_data['eye'][2])
+        )
+    bpy.context.view_layer.update()
+    LookAt(obj_camera,look_data['at'])
 
-    # bpy.context.view_layer.update()
-    # depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
-    # bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
+    bpy.context.view_layer.update()
+    depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
+    bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
     
-    # bpy.ops.render.render(write_still = True)    
-    # os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(frame_set-1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr')
+    bpy.ops.render.render(write_still = True)    
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(frame_set-1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
 
-    # raise()
+    # pixels = bpy.data.images['Viewer Node'].pixels
+    
+    # segmentation_mask = np.asarray(pixels)
+    # segmentation_mask = segmentation_mask.reshape((args.resolution,args.resolution,4))
+    # print(pixels)
+
+
 
 
 
@@ -1256,6 +1297,14 @@ for i_pos, look_data in enumerate(look_at_trans):
         scene_aabb = [],
     )
     
+    # if no depth or no segmentation to be saved.
+    if not args.save_segmentation:
+        os.remove(f'{path}/{str(i_pos).zfill(3)}_seg.exr')
+        # threading.Thread(os.remove, f'{path}/{str(i_pos).zfill(3)}_seg.exr').start()
+    if not args.save_depth:
+        os.remove(f'{path}/{str(i_pos).zfill(3)}_depth.exr')
+        # threading.Thread(os.remove, f'{path}/{str(i_pos).zfill(3)}_depth.exr').start()
+
 
     rt = get_3x4_RT_matrix_from_blender(obj_camera)
     pos, rt, scale = obj_camera.matrix_world.decompose()
@@ -1285,9 +1334,6 @@ for i_pos, look_data in enumerate(look_at_trans):
 
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}.png'
     bpy.ops.render.render(write_still = True)
-    # raise()
-    # time.sleep(10)
-    # break
 
     to_export['frames'] = frames
 
