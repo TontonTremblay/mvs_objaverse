@@ -10,6 +10,8 @@ import glob
 # import png 
 import threading
 
+
+
 parser = argparse.ArgumentParser(description='Renders given obj file by rotation a camera around it.')
 parser.add_argument(
     '--views', type=int, default=24,
@@ -74,6 +76,16 @@ parser.add_argument(
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 args = parser.parse_args(argv)
+
+
+import sys 
+with open("path.txt") as file:
+    paths = eval(file.read())
+
+for p in paths:
+    sys.path.insert(0,p)
+
+    
 
 
 class dotdict(dict):
@@ -511,17 +523,16 @@ def LookAt(obj, target, roll=0):
     obj.matrix_world = quat @ rollMatrix
     obj.location = loc
 
-def export_to_ndds_file(
+def export_meta_data_2_json(
     filename = "tmp.json", #this has to include path as well
     height = 500, 
     width = 500,
-    camera_ob = 'my_camera',
+    camera_ob = None,
     camera_struct = None,
     data = None,
     segmentation_mask = None,
     scene_aabb = []
     ):
-    # To do export things in the camera frame, e.g., pose and quaternion
 
 
     # import simplejson as json
@@ -1147,8 +1158,7 @@ to_export = {
 
 
 ##### CREATE A new scene for segmentation rendering 
-result = bpy.ops.scene.new(type='FULL_COPY')
-# result = bpy.ops.scene.new(type='LINK_COPY')
+bpy.ops.scene.new(type='FULL_COPY')
 bpy.context.scene.name = "segmentation"
 
 
@@ -1253,7 +1263,7 @@ for i_pos, look_data in enumerate(look_at_trans):
     LookAt(obj_camera,look_data['at'])
 
     bpy.context.view_layer.update()
-    depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
+    # depth_file_output.file_slots[0].path = f'{str(i_pos).zfill(3)}_depth'
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
     
     bpy.ops.render.render(write_still = True)    
