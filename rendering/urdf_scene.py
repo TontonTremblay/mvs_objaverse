@@ -75,14 +75,14 @@ bpy.ops.object.delete()
 bpy.data.objects['Light'].select_set(True)
 bpy.ops.object.delete()
 
-
+RESOLUTION = 512
 ##### SET THE RENDERER ######
 render = bpy.context.scene.render
 render.engine = "CYCLES"
 render.image_settings.color_mode = 'RGBA'  # ('RGB', 'RGBA', ...)
 render.image_settings.file_format = 'PNG'  # ('PNG', 'OPEN_EXR', 'JPEG, ...)
-render.resolution_x = 1000
-render.resolution_y = 1000
+render.resolution_x = RESOLUTION
+render.resolution_y = RESOLUTION
 render.resolution_percentage = 100
 bpy.context.scene.cycles.filter_width = 0.01
 # bpy.context.scene.render.film_transparent = True
@@ -101,6 +101,7 @@ urdf_content_path = "/Users/jtremblay/code/yourdfpy/robot/kitchen_urdf/"
 kitchen = URDF.load(f"{urdf_content_path}/kitchen.urdf")
 
 random.seed(100101)
+np.random.seed(100101)
 
 NB_FRAMES = 300
 
@@ -389,27 +390,17 @@ cam_constraint = cam.constraints.new(type='TRACK_TO')
 cam_constraint.track_axis = 'TRACK_NEGATIVE_Z'
 cam_constraint.up_axis = 'UP_Y'
 
-cam_empty = bpy.data.objects.new("Empty", None)
-cam_empty.location = (0, 0, 0)
-cam.parent = cam_empty
-
-scene.collection.objects.link(cam_empty)
-context.view_layer.objects.active = cam_empty
-cam_constraint.target = cam_empty
-
-
-
-
-bpy.context.scene.render.resolution_x = 512
-bpy.context.scene.render.resolution_y = 512
+bpy.context.scene.render.resolution_x = RESOLUTION
+bpy.context.scene.render.resolution_y = RESOLUTION
 
 make_segmentation_scene()
 
 render_single_image(
     look_at_data=look_at_trans[0],
     path = "/Users/jtremblay/code/mvs_objaverse/tmp/",
+    resolution = RESOLUTION,
     )
-
+print(look_at_trans[0])
 bpy.ops.wm.save_as_mainfile(filepath=f"/Users/jtremblay/code/mvs_objaverse/urdf.blend")
 
 

@@ -23,6 +23,7 @@ import scipy
 # global variable
 DATA_EXPORT = {}
 depth_file_output = None
+flow_file_output = None 
 
 def make_obj_emissive(obj, color):
     new_mat = bpy.data.materials.new(name="seg")
@@ -115,7 +116,7 @@ def update_object_poses():
     pass 
 
 def make_segmentation_scene(scene_name='segmentation'):
-    global DATA_EXPORT, depth_file_output
+    global DATA_EXPORT, depth_file_output, flow_file_output
 
     bpy.ops.scene.new(type='FULL_COPY')
     bpy.context.scene.name = scene_name
@@ -124,6 +125,7 @@ def make_segmentation_scene(scene_name='segmentation'):
     bpy.context.scene.cycles.samples =1
     bpy.context.view_layer.cycles.use_denoising = False
     bpy.context.scene.render.use_motion_blur = False
+    bpy.context.view_layer.use_pass_vector = True
     bpy.context.scene.render.image_settings.file_format="OPEN_EXR"
     bpy.context.scene.render.image_settings.compression=0
     bpy.context.scene.render.image_settings.color_mode="RGBA"
@@ -190,6 +192,13 @@ def make_segmentation_scene(scene_name='segmentation'):
     depth_file_output.format.file_format = "OPEN_EXR"
     depth_file_output.base_path = '/'
 
+    flow_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
+    flow_file_output.label = 'Depth Output'
+    links.new(render_layers.outputs['Vector'], flow_file_output.inputs[0])
+    flow_file_output.format.file_format = "OPEN_EXR"
+    flow_file_output.base_path = '/'
+
+
     node_viewer = tree.nodes.new('CompositorNodeViewer') 
     node_viewer.use_alpha = False  
     links.new(render_layers.outputs['Image'], node_viewer.inputs[0])
@@ -242,6 +251,7 @@ def get_calibration_matrix_K_from_blender(camd):
     sensor_width_in_mm = camd.sensor_width
     sensor_height_in_mm = camd.sensor_height
     pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+
     if (camd.sensor_fit == 'VERTICAL'):
         # the sensor height is fixed (sensor fit is horizontal), 
         # the sensor width is effectively changed with the pixel aspect ratio
@@ -260,7 +270,6 @@ def get_calibration_matrix_K_from_blender(camd):
     u_0 = resolution_x_in_px * scale / 2
     v_0 = resolution_y_in_px * scale / 2
     skew = 0 # only use rectangular pixels
-
     K = mathutils.Matrix(
         ((alpha_u, skew,    u_0),
         (    0  , alpha_v, v_0),
@@ -316,7 +325,8 @@ def export_meta_data_2_json(
     i_pos = 0
     ):
     global DATA_EXPORT
-    
+    data = DATA_EXPORT
+
     # import simplejson as json
     import json
     # cam_world_quaternion = visii.quat_cast(cam_matrix)
@@ -379,8 +389,8 @@ def export_meta_data_2_json(
                     'intrinsics':{
                         'fx':cam_intrinsics[0][0],
                         'fy':cam_intrinsics[1][1],
-                        'cx':cam_intrinsics[2][0],
-                        'cy':cam_intrinsics[2][1]
+                        'cx':cam_intrinsics[0][2],
+                        'cy':cam_intrinsics[1][2]
                     },
                     # 'scene_min_3d_box':scene_aabb[0],
                     # 'scene_max_3d_box':scene_aabb[1],
@@ -390,7 +400,7 @@ def export_meta_data_2_json(
             }
 
     # load the segmentation & find unique pixels
-    print(width)
+
     if not segmentation_mask is None or os.path.exists(f'{path}/{str(i_pos).zfill(3)}_seg.exr'):
         segmentation_mask = bpy.data.images.load(f'{path}/{str(i_pos).zfill(3)}_seg.exr')
         segmentation_mask = np.asarray(segmentation_mask.pixels)
@@ -401,6 +411,7 @@ def export_meta_data_2_json(
 
     # Segmentation id to export
     import bpy_extras
+    scene = bpy.context.scene
     for obj_name in data.keys(): 
         projected_keypoints = []
         
@@ -423,7 +434,7 @@ def export_meta_data_2_json(
                         )
             projected_keypoints.append([co_2d.x * render_size[0],height - co_2d.y * render_size[1]])
  
-        cuboid = data[obj_name]['cuboid3d']
+        cuboid = data[obj_name]['cuboid']
 
         #check if the object is visible
         visibility = -1
@@ -467,7 +478,7 @@ def export_meta_data_2_json(
             trans_matrix_export.append(a)
         trans_matrix_export.append([0,0,0,1])
         
-        rt = obj_camera.convert_space(matrix=obj.matrix_world, to_space='LOCAL')
+        rt = camera_ob.convert_space(matrix=obj.matrix_world, to_space='LOCAL')
         trans_matrix_cam_export = []
         for i in range(3):
             a = []
@@ -511,7 +522,7 @@ def render_single_image(
     save_depth = True,
     resolution = 500,
     ): 
-    global DATA_EXPORT, depth_file_output
+    global DATA_EXPORT, depth_file_output,flow_file_output
     i_pos = frame_set
 
     bpy.context.window.scene = bpy.data.scenes['segmentation']
@@ -527,12 +538,14 @@ def render_single_image(
     bpy.context.view_layer.update()
 
     depth_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_depth'
+    flow_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_flow'
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
     
     bpy.ops.render.render(write_still = True)
     # print(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos+1).zfill(4)}.exr')
     # raise()    
     os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos+1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_flow{str(i_pos+1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_flow.exr') 
 
 
     # render.engine = args.engine
@@ -554,8 +567,8 @@ def render_single_image(
 
     export_meta_data_2_json(
         f"{path}/{str(i_pos).zfill(3)}.json",
-        width = bpy.ops.render.resolution_x,
-        height = bpy.ops.render.resolution_y,
+        width = resolution,
+        height = resolution,
         camera_ob = obj_camera,
         data = DATA_EXPORT,
         camera_struct = look_at_data,
@@ -598,9 +611,6 @@ def render_single_image(
         "file_path":f'{str(i_pos).zfill(3)}.png',
         "transform_matrix":matrix
     }
-    frames.append(to_add)
-
+    
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}.png'
     bpy.ops.render.render(write_still = True)
-
-    to_export['frames'] = frames
