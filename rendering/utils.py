@@ -111,6 +111,15 @@ def add_annotation(obj_parent,transform_apply=False):
     DATA_EXPORT[obj_parent.name]['cuboid'] = cuboid 
     bpy.ops.object.select_all(action='DESELECT') 
 
+def add_light_under(obj,dist = 0.01,power=5): 
+    light_data = bpy.data.lights.new(name=obj.name+"_light", type='POINT')
+    light_data.energy = power
+    light_object = bpy.data.objects.new(name=obj.name+"_light", object_data=light_data)
+    light_object.location = (0, 0, -dist)
+    bpy.context.collection.objects.link(light_object)
+    light_object.parent = obj
+    # raise()
+
 def update_object_poses():
     # get scenes
     pass 
@@ -526,16 +535,20 @@ def render_single_image(
     i_pos = frame_set
 
     bpy.context.window.scene = bpy.data.scenes['segmentation']
-    obj_camera = bpy.context.scene.objects['Camera.001']
-    obj_camera.location = (
-        (look_at_data['eye'][0]),
-        (look_at_data['eye'][1]),
-        (look_at_data['eye'][2])
-        )
-    bpy.context.view_layer.update()
-    look_at(obj_camera,look_at_data['at'])
+    bpy.context.scene.frame_set(frame_set)
 
-    bpy.context.view_layer.update()
+    obj_camera = bpy.context.scene.objects['Camera.001']
+    
+    if not look_at_data is None:
+        obj_camera.location = (
+            (look_at_data['eye'][0]),
+            (look_at_data['eye'][1]),
+            (look_at_data['eye'][2])
+            )
+        bpy.context.view_layer.update()
+        look_at(obj_camera,look_at_data['at'])
+
+        bpy.context.view_layer.update()
 
     depth_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_depth'
     flow_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_flow'
@@ -544,23 +557,26 @@ def render_single_image(
     bpy.ops.render.render(write_still = True)
     # print(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos+1).zfill(4)}.exr')
     # raise()    
-    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos+1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
-    os.rename(f'{path}/{str(i_pos).zfill(3)}_flow{str(i_pos+1).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_flow.exr') 
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_flow{str(i_pos).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_flow.exr') 
 
 
     # render.engine = args.engine
     bpy.context.window.scene = bpy.data.scenes['Scene']
-    obj_camera = bpy.context.scene.objects['Camera']
-    obj_camera.location = (
-        (look_at_data['eye'][0]),
-        (look_at_data['eye'][1]),
-        (look_at_data['eye'][2])
-        )
-    bpy.context.view_layer.update()
-    
-    look_at(obj_camera,look_at_data['at'])
+    bpy.context.scene.frame_set(frame_set)
 
-    bpy.context.view_layer.update()
+    if not look_at_data is None:
+        obj_camera = bpy.context.scene.objects['Camera']
+        obj_camera.location = (
+            (look_at_data['eye'][0]),
+            (look_at_data['eye'][1]),
+            (look_at_data['eye'][2])
+            )
+        bpy.context.view_layer.update()
+        
+        look_at(obj_camera,look_at_data['at'])
+
+        bpy.context.view_layer.update()
 
     # change the scene 
 
