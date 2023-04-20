@@ -17,8 +17,9 @@ mkdir output
 python rendering/render_all_models.py --save_folder /home/jtremblay/code/mvs_objaverse/output/ --folder_assets /home/jtremblay/.objaverse/hf-objaverse-v1/glbs/ --blender_root /home/jtremblay/Desktop/blender-3.2.0-alpha+master.e2e4c1daaa47-linux.x86_64-release/blender
 ```
 
-The output from the script is compatible instant-ngp. And here is a sample for the mugs: 
+The output from the script is compatible with instant-ngp. And here is a sample for the mugs: 
 ![renders](https://i.imgur.com/CcdGXJL.jpg)
+
 
 # Animations 
 Maybe you want to animate some renders e.g., 360 view. 

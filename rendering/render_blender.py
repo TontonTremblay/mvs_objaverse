@@ -32,6 +32,11 @@ parser.add_argument(
     help='save_depth')
 
 parser.add_argument(
+    '--normal', action="store_true",
+    help='save_normal')
+
+
+parser.add_argument(
     '--use_model_identifier', action='store_true',
     help='add the name of the folder to the end of the thing.')
 
@@ -556,6 +561,24 @@ if args.depth:
     node_viewer.use_alpha = False  
     links.new(render_layers.outputs['Image'], node_viewer.inputs[0])    
 
+if args.normal: 
+    if not args.depth: 
+        bpy.context.scene.use_nodes = True
+        tree = bpy.context.scene.node_tree
+        links = tree.links
+
+        for n in tree.nodes:
+            tree.nodes.remove(n)
+        # Create input render layer node.
+        render_layers = tree.nodes.new('CompositorNodeRLayers')
+    
+    bpy.context.view_layer.use_pass_normal=True
+
+    normal_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
+    normal_file_output.label = 'Normal Output'
+    links.new(render_layers.outputs['Normal'], normal_file_output.inputs[0])
+    normal_file_output.format.file_format = "OPEN_EXR"
+    normal_file_output.base_path = ''
 
 for i_pos, pos in enumerate(positions):
 
@@ -598,13 +621,16 @@ for i_pos, pos in enumerate(positions):
 
     if args.depth: 
         depth_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_depth'
+    if args.normal:
+        normal_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_normal'
 
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}.png'
     bpy.ops.render.render(write_still = True)
 
     if args.depth:
         os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(bpy.data.scenes[0].frame_current).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
-
+    if args.normal:
+        os.rename(f'{path}/{str(i_pos).zfill(3)}_normal{str(bpy.data.scenes[0].frame_current).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_normal.exr') 
     # raise()
     # time.sleep(10)
     # break
