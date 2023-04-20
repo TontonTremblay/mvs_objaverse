@@ -28,6 +28,10 @@ parser.add_argument(
     help='folder to put things in')
 
 parser.add_argument(
+    '--depth', action="store_true",
+    help='save_depth')
+
+parser.add_argument(
     '--use_model_identifier', action='store_true',
     help='add the name of the folder to the end of the thing.')
 
@@ -527,6 +531,31 @@ to_export = {
 frames = []
 
 
+# add the depth if needed
+if args.depth: 
+    bpy.context.scene.use_nodes = True
+    tree = bpy.context.scene.node_tree
+    links = tree.links
+
+    for n in tree.nodes:
+        tree.nodes.remove(n)
+    
+    bpy.context.scene.render.image_settings.use_zbuffer=True
+    bpy.context.view_layer.use_pass_z=True
+
+    # Create input render layer node.
+    render_layers = tree.nodes.new('CompositorNodeRLayers')
+
+    depth_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
+    depth_file_output.label = 'Depth Output'
+    links.new(render_layers.outputs['Depth'], depth_file_output.inputs[0])
+    depth_file_output.format.file_format = "OPEN_EXR"
+    depth_file_output.base_path = ''
+
+    node_viewer = tree.nodes.new('CompositorNodeViewer') 
+    node_viewer.use_alpha = False  
+    links.new(render_layers.outputs['Image'], node_viewer.inputs[0])    
+
 
 for i_pos, pos in enumerate(positions):
 
@@ -567,8 +596,15 @@ for i_pos, pos in enumerate(positions):
     }
     frames.append(to_add)
 
+    if args.depth: 
+        depth_file_output.file_slots[0].path = f'{path}/{str(i_pos).zfill(3)}_depth'
+
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}.png'
     bpy.ops.render.render(write_still = True)
+
+    if args.depth:
+        os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(bpy.data.scenes[0].frame_current).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
+
     # raise()
     # time.sleep(10)
     # break
