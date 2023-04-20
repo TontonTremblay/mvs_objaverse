@@ -18,6 +18,7 @@ opt = parser.parse_args()
 
 # render_cmd = f'PYTHONPATH=/Users/jtremblay/miniconda3/bin/python {opt.blender_root} -b --python-use-system-env -P rendering/urdf_scene.py -- ' 
 render_cmd = f'PYTHONPATH=/Users/jtremblay/miniconda3/bin/python {opt.blender_root} -b --python-use-system-env -P rendering/bowen_animated.py -- ' 
+# render_cmd = f'PYTHONPATH=/Users/jtremblay/miniconda3/bin/python {opt.blender_root} -b --python-use-system-env -P rendering/bowen_simple.py -- ' 
 
 # render_cmd = render_cmd + ' > tmp.out'
 

@@ -201,9 +201,17 @@ def make_segmentation_scene(scene_name='segmentation'):
     depth_file_output.format.file_format = "OPEN_EXR"
     depth_file_output.base_path = '/'
 
+    # flow - helped from blenderproc, thank you 
+    separate_rgba = tree.nodes.new('CompositorNodeSepRGBA')
+    links.new(render_layers.outputs['Vector'], separate_rgba.inputs['Image'])
+
+    combine_fwd_flow = tree.nodes.new('CompositorNodeCombRGBA')
+    links.new(separate_rgba.outputs['B'], combine_fwd_flow.inputs['R'])
+    links.new(separate_rgba.outputs['A'], combine_fwd_flow.inputs['G'])
+    
     flow_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
-    flow_file_output.label = 'Depth Output'
-    links.new(render_layers.outputs['Vector'], flow_file_output.inputs[0])
+    flow_file_output.label = 'Flow Output'
+    links.new(combine_fwd_flow.outputs['Image'], flow_file_output.inputs[0])
     flow_file_output.format.file_format = "OPEN_EXR"
     flow_file_output.base_path = '/'
 
@@ -250,40 +258,135 @@ def get_3x4_RT_matrix_from_blender(cam):
         ))
     return RT
 
-# Function taken from https://github.com/zhenpeiyang/HM3D-ABO/blob/master/my_blender.py
-def get_calibration_matrix_K_from_blender(camd):
-    f_in_mm = camd.lens
-    scene = bpy.context.scene
-    resolution_x_in_px = scene.render.resolution_x
-    resolution_y_in_px = scene.render.resolution_y
-    scale = scene.render.resolution_percentage / 100
-    sensor_width_in_mm = camd.sensor_width
-    sensor_height_in_mm = camd.sensor_height
-    pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+def get_sensor_size(sensor_fit, sensor_x, sensor_y):
+    if sensor_fit == 'VERTICAL':
+        return sensor_y
+    return sensor_x
 
-    if (camd.sensor_fit == 'VERTICAL'):
-        # the sensor height is fixed (sensor fit is horizontal), 
-        # the sensor width is effectively changed with the pixel aspect ratio
-        s_u = resolution_x_in_px * scale / sensor_width_in_mm / pixel_aspect_ratio 
-        s_v = resolution_y_in_px * scale / sensor_height_in_mm
-    else: # 'HORIZONTAL' and 'AUTO'
-        # the sensor width is fixed (sensor fit is horizontal), 
-        # the sensor height is effectively changed with the pixel aspect ratio
-        pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
-        s_u = resolution_x_in_px * scale / sensor_width_in_mm
-        s_v = resolution_y_in_px * scale * pixel_aspect_ratio / sensor_height_in_mm
+# BKE_camera_sensor_fit
+def get_sensor_fit(sensor_fit, size_x, size_y):
+    if sensor_fit == 'AUTO':
+        if size_x >= size_y:
+            return 'HORIZONTAL'
+        else:
+            return 'VERTICAL'
+    return sensor_fit
+
+# Build intrinsic camera parameters from Blender camera data
+#
+# See notes on this in 
+# blender.stackexchange.com/questions/15102/what-is-blenders-camera-projection-matrix-model
+# as well as
+# https://blender.stackexchange.com/a/120063/3581
+def get_calibration_matrix_K_from_blender(camd):
+    if camd.type != 'PERSP':
+        raise ValueError('Non-perspective cameras not supported')
+    scene = bpy.context.scene
+    f_in_mm = camd.lens
+    scale = scene.render.resolution_percentage / 100
+    resolution_x_in_px = scale * scene.render.resolution_x
+    resolution_y_in_px = scale * scene.render.resolution_y
+    sensor_size_in_mm = get_sensor_size(camd.sensor_fit, camd.sensor_width, camd.sensor_height)
+    sensor_fit = get_sensor_fit(
+        camd.sensor_fit,
+        scene.render.pixel_aspect_x * resolution_x_in_px,
+        scene.render.pixel_aspect_y * resolution_y_in_px
+    )
+    pixel_aspect_ratio = scene.render.pixel_aspect_y / scene.render.pixel_aspect_x
+    if sensor_fit == 'HORIZONTAL':
+        view_fac_in_px = resolution_x_in_px
+    else:
+        view_fac_in_px = pixel_aspect_ratio * resolution_y_in_px
+    pixel_size_mm_per_px = sensor_size_in_mm / f_in_mm / view_fac_in_px
+    s_u = 1 / pixel_size_mm_per_px
+    s_v = 1 / pixel_size_mm_per_px / pixel_aspect_ratio
 
     # Parameters of intrinsic calibration matrix K
-    alpha_u = f_in_mm * s_u
-    alpha_v = f_in_mm * s_v
-    u_0 = resolution_x_in_px * scale / 2
-    v_0 = resolution_y_in_px * scale / 2
+    u_0 = resolution_x_in_px / 2 - camd.shift_x * view_fac_in_px
+    v_0 = resolution_y_in_px / 2 + camd.shift_y * view_fac_in_px / pixel_aspect_ratio
     skew = 0 # only use rectangular pixels
-    K = mathutils.Matrix(
-        ((alpha_u, skew,    u_0),
-        (    0  , alpha_v, v_0),
-        (    0  , 0,        1 )))
+
+    K = Matrix(
+        ((s_u, skew, u_0),
+        (   0,  s_v, v_0),
+        (   0,    0,   1)))
+    # print(K)
+    # raise()
     return K
+
+# Returns camera rotation and translation matrices from Blender.
+# 
+# There are 3 coordinate systems involved:
+#    1. The World coordinates: "world"
+#       - right-handed
+#    2. The Blender camera coordinates: "bcam"
+#       - x is horizontal
+#       - y is up
+#       - right-handed: negative z look-at direction
+#    3. The desired computer vision camera coordinates: "cv"
+#       - x is horizontal
+#       - y is down (to align to the actual pixel coordinates 
+#         used in digital images)
+#       - right-handed: positive z look-at direction
+
+# Function taken from https://github.com/zhenpeiyang/HM3D-ABO/blob/master/my_blender.py
+# def get_calibration_matrix_K_from_blender(camd):
+#     scene = bpy.context.scene
+
+#     scale = scene.render.resolution_percentage / 100
+#     width = scene.render.resolution_x * scale # px
+#     height = scene.render.resolution_y * scale # px
+
+#     camdata = camd
+
+
+#     aspect_ratio = width / height
+#     K = np.zeros((3,3), dtype=np.float32)
+#     K[0][0] = width / 2 / np.tan(camdata.angle / 2)
+#     K[1][1] = height / 2. / np.tan(camdata.angle / 2) * aspect_ratio
+#     K[0][2] = width / 2.
+#     K[1][2] = height / 2.
+#     K[2][2] = 1.
+#     K.transpose()
+    
+#     return K 
+
+    # f_in_mm = camd.lens
+    # scene = bpy.context.scene
+    # resolution_x_in_px = scene.render.resolution_x
+    # resolution_y_in_px = scene.render.resolution_y
+    # scale = scene.render.resolution_percentage / 100
+    # sensor_width_in_mm = camd.sensor_width
+    # sensor_height_in_mm = camd.sensor_height
+    # pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+
+    # if (camd.sensor_fit == 'VERTICAL'):
+    #     # the sensor height is fixed (sensor fit is horizontal), 
+    #     # the sensor width is effectively changed with the pixel aspect ratio
+    #     s_u = resolution_x_in_px * scale / sensor_width_in_mm / pixel_aspect_ratio 
+    #     s_v = resolution_y_in_px * scale / sensor_height_in_mm
+    #     print('here')
+    #     raise()
+    # else: # 'HORIZONTAL' and 'AUTO'
+    #     # the sensor width is fixed (sensor fit is horizontal), 
+    #     # the sensor height is effectively changed with the pixel aspect ratio
+    #     pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+    #     s_u = resolution_x_in_px * scale / sensor_width_in_mm
+    #     s_v = resolution_y_in_px * scale * pixel_aspect_ratio / sensor_height_in_mm
+    #     print(s_u,s_v)
+    #     print('non')
+    #     raise()
+    # # Parameters of intrinsic calibration matrix K
+    # alpha_u = f_in_mm * s_u
+    # alpha_v = f_in_mm * s_v
+    # u_0 = resolution_x_in_px * scale / 2
+    # v_0 = resolution_y_in_px * scale / 2
+    # skew = 0 # only use rectangular pixels
+    # K = mathutils.Matrix(
+    #     ((alpha_u, skew,    u_0),
+    #     (    0  , alpha_v, v_0),
+    #     (    0  , 0,        1 )))
+    # return K
 
 # function taken from https://blender.stackexchange.com/questions/5210/pointing-the-camera-in-a-particular-direction-programmatically
 def look_at(obj, target, roll=0):
@@ -396,10 +499,10 @@ def export_meta_data_2_json(
                         cam_world_location[2],
                     ],
                     'intrinsics':{
-                        'fx':cam_intrinsics[0][0],
-                        'fy':cam_intrinsics[1][1],
-                        'cx':cam_intrinsics[0][2],
-                        'cy':cam_intrinsics[1][2]
+                        'fx':float(cam_intrinsics[0][0]),
+                        'fy':float(cam_intrinsics[1][1]),
+                        'cx':float(cam_intrinsics[0][2]),
+                        'cy':float(cam_intrinsics[1][2])
                     },
                     # 'scene_min_3d_box':scene_aabb[0],
                     # 'scene_max_3d_box':scene_aabb[1],
@@ -487,7 +590,8 @@ def export_meta_data_2_json(
             trans_matrix_export.append(a)
         trans_matrix_export.append([0,0,0,1])
         
-        rt = camera_ob.convert_space(matrix=obj.matrix_world, to_space='LOCAL')
+        rt = camera_ob.matrix_world.inverted() @ obj.matrix_world
+
         trans_matrix_cam_export = []
         for i in range(3):
             a = []
