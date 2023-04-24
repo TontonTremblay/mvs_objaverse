@@ -106,17 +106,36 @@ np.random.seed(100101)
 NB_FRAMES = 300
 
 cfg_start = {}
+data_structure = {}
+
+children_structure = {}
+parent_structure = {}
+
 
 for joint_name in kitchen.joint_names:
     j = kitchen.joint_map[joint_name]
+    data_structure[joint_name] = {
+        'parent':j.parent,
+        'child':j.child
+    }
+    if j.parent in children_structure:
+        children_structure[j.parent].append(j.child)
+    else:
+        children_structure[j.parent]=[j.child]
+    parent_structure[j.child]=j.parent
+    if 'range' in j.child:
+        print(j.child,'is child to',j.parent)
     if not j.limit is None: 
         # print(j.limit)
         cfg_start[joint_name] = random.uniform(j.limit.lower,j.limit.upper)
+# raise()
+# print(data_structure)
 
 #make the interpret
 values_to_render = {}
 
 for joint_name in cfg_start.keys():
+
     j = kitchen.joint_map[joint_name]
     nb_poses = 10
     x = np.linspace(0,1,nb_poses)
@@ -170,13 +189,24 @@ def add_light_under(obj,dist = 0.01,power=5):
     light_object.parent = obj
     # raise()
 
+
 for link in kitchen.link_map.keys():    
     link_name = link
     link = kitchen.link_map[link]
+    # print(link_name,link.parent,link.child)
+    if len(link.visuals) == 0: 
+        bpy.ops.object.empty_add(radius=0.05,location=(0,0,0))
+        ob = bpy.context.object
+        ob.name = link_name
+        link2blender[link_name] = ob 
+        add_annotation(ob,empty=True,link_name=link_name,data_parent=parent_structure)
 
     for visual in link.visuals:
+
+        # TODO remove this> 
         if not 'range' in link_name:
             continue
+
         bpy.ops.object.select_all(action='DESELECT')
         if not visual.geometry.mesh is None:
             data_2_load = os.path.join(urdf_content_path,visual.geometry.mesh.filename)
@@ -226,7 +256,6 @@ for link in kitchen.link_map.keys():
                 add_material(obj,wood)            
             elif 'door' in link_name:
                 add_material(obj,wood)
-
             else:
                 add_material(obj,metal)
 
@@ -293,7 +322,7 @@ for link in kitchen.link_map.keys():
                 add_material(obj,wood)
 
         #### ADD ANNOTATION ####
-        add_annotation(obj)
+        add_annotation(obj,link_name= link_name,data_parent=parent_structure)
 
 bpy.context.view_layer.update()
 
@@ -363,7 +392,10 @@ global DATA_EXPORT
 
 for pos in positions_to_render:
 
-    at_name = list(DATA_EXPORT.keys())[np.random.randint(0,len(list(DATA_EXPORT.keys())))]
+    while True:
+        at_name = list(DATA_EXPORT.keys())[np.random.randint(0,len(list(DATA_EXPORT.keys())))]
+        if bpy.data.objects[at_name].type == 'MESH':
+            break
     pos_obj= bpy.data.objects[at_name].location
     look_at = [pos_obj[0],pos_obj[1],pos_obj[2]]
 
@@ -400,7 +432,7 @@ render_single_image(
     path = "/Users/jtremblay/code/mvs_objaverse/tmp/",
     resolution = RESOLUTION,
     )
-print(look_at_trans[0])
+# print(look_at_trans[0])
 bpy.ops.wm.save_as_mainfile(filepath=f"/Users/jtremblay/code/mvs_objaverse/urdf.blend")
 
 

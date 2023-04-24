@@ -50,66 +50,82 @@ def get_all_child(ob,to_return = []):
         to_add += get_all_child(child)
     return to_add
     
-def add_annotation(obj_parent,transform_apply=False): 
+def add_annotation(obj_parent,transform_apply=False,
+    link_name = None,
+    data_parent = None, 
+    data_child = None,
+    empty = False
+    ): 
     global DATA_EXPORT
 
     DATA_EXPORT[obj_parent.name] = {}
 
-    mesh_objs = []
-    for obj in get_all_child(obj_parent):
-        print(obj.name,obj.type)
-        if not obj.type == 'MESH':
-            continue
-        mesh_objs.append(obj)
-    
-    corners = []
+    if not data_parent is None: 
+        if not link_name == 'world':
 
-    for ob in mesh_objs:
-        ob.select_set(True)
-        bpy.context.view_layer.objects.active = ob
-        if transform_apply:
-            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        bbox_corners = [ob.matrix_world @ Vector(corner)  for corner in ob.bound_box]
-        bbox_corners = [Vector(corner)  for corner in ob.bound_box]
+            DATA_EXPORT[obj_parent.name]['parent'] = data_parent[obj_parent.name]        
+            DATA_EXPORT[obj_parent.name]['name_link'] = link_name
+        else: 
+            DATA_EXPORT[obj_parent.name]['parent'] = None        
+            DATA_EXPORT[obj_parent.name]['name_link'] = link_name
+    if empty is False:
+        mesh_objs = []
+        for obj in get_all_child(obj_parent):
+            print(obj.name,obj.type)
+            if not obj.type == 'MESH':
+                continue
+            mesh_objs.append(obj)
         
-        for corn in bbox_corners:
-            corners.append([corn.x,corn.y,corn.z])
+        corners = []
 
-    corners = np.array(corners)
+        for ob in mesh_objs:
+            ob.select_set(True)
+            bpy.context.view_layer.objects.active = ob
+            if transform_apply:
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            bbox_corners = [ob.matrix_world @ Vector(corner)  for corner in ob.bound_box]
+            bbox_corners = [Vector(corner)  for corner in ob.bound_box]
+            
+            for corn in bbox_corners:
+                corners.append([corn.x,corn.y,corn.z])
 
-    # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])))
-    # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])))
-    mina = [np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])]
-    maxb = [np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])]
-    # center_point = Vector(((minA.x + maxB.x)/2, (minA.y + maxB.y)/2, (minA.z + maxB.z)/2))
-    center_point = Vector(((mina[0] + maxb[0])/2, (mina[1] + maxb[1])/2, (mina[2] + maxb[2])/2))
-    # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(center_point))
-    # center_point = 
-    dimensions =  Vector((maxb[0] - mina[0], maxb[1] - mina[1], maxb[2] - mina[2]))
-    max_obj = maxb
-    min_obj = mina
-    centroid_obj = center_point
+        corners = np.array(corners)
 
-    cuboid = [
-        (max_obj[0], min_obj[1], max_obj[2]),
-        (min_obj[0], min_obj[1], max_obj[2]),
-        (min_obj[0], max_obj[1], max_obj[2]),
-        (max_obj[0], max_obj[1], max_obj[2]),
-        (max_obj[0], min_obj[1], min_obj[2]),
-        (min_obj[0], min_obj[1], min_obj[2]),
-        (min_obj[0], max_obj[1], min_obj[2]),
-        (max_obj[0], max_obj[1], min_obj[2]),
-        (centroid_obj[0], centroid_obj[1], centroid_obj[2]),
-    ]    
+        # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])))
+        # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])))
+        mina = [np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])]
+        maxb = [np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])]
+        # center_point = Vector(((minA.x + maxB.x)/2, (minA.y + maxB.y)/2, (minA.z + maxB.z)/2))
+        center_point = Vector(((mina[0] + maxb[0])/2, (mina[1] + maxb[1])/2, (mina[2] + maxb[2])/2))
+        # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(center_point))
+        # center_point = 
+        dimensions =  Vector((maxb[0] - mina[0], maxb[1] - mina[1], maxb[2] - mina[2]))
+        max_obj = maxb
+        min_obj = mina
+        centroid_obj = center_point
 
-    for ip, p in enumerate(cuboid):
-        bpy.ops.object.empty_add(radius=0.05,location=p)
-        ob = bpy.context.object
-        ob.name = f'{ip}_{obj_parent.name}'
-        ob.parent = obj_parent
+        cuboid = [
+            (max_obj[0], min_obj[1], max_obj[2]),
+            (min_obj[0], min_obj[1], max_obj[2]),
+            (min_obj[0], max_obj[1], max_obj[2]),
+            (max_obj[0], max_obj[1], max_obj[2]),
+            (max_obj[0], min_obj[1], min_obj[2]),
+            (min_obj[0], min_obj[1], min_obj[2]),
+            (min_obj[0], max_obj[1], min_obj[2]),
+            (max_obj[0], max_obj[1], min_obj[2]),
+            (centroid_obj[0], centroid_obj[1], centroid_obj[2]),
+        ]    
 
-    DATA_EXPORT[obj_parent.name]['cuboid'] = cuboid 
-    bpy.ops.object.select_all(action='DESELECT') 
+        for ip, p in enumerate(cuboid):
+            bpy.ops.object.empty_add(radius=0.05,location=p)
+            ob = bpy.context.object
+            ob.name = f'{ip}_{obj_parent.name}'
+            ob.parent = obj_parent
+
+        DATA_EXPORT[obj_parent.name]['cuboid'] = cuboid 
+        bpy.ops.object.select_all(action='DESELECT') 
+    else:
+        DATA_EXPORT[obj_parent.name]['cuboid'] = None 
 
 def add_light_under(obj,dist = 0.01,power=5): 
     light_data = bpy.data.lights.new(name=obj.name+"_light", type='POINT')
@@ -310,8 +326,7 @@ def get_calibration_matrix_K_from_blender(camd):
         ((s_u, skew, u_0),
         (   0,  s_v, v_0),
         (   0,    0,   1)))
-    # print(K)
-    # raise()
+
     return K
 
 # Returns camera rotation and translation matrices from Blender.
@@ -520,6 +535,11 @@ def export_meta_data_2_json(
         unique_pixels = np.vstack({tuple(r) for r in segmentation_mask.reshape(-1,3)})
         unique_pixels = (unique_pixels*255).astype(int)
 
+    #string comparisons for avoiding weird NP things when comparing arrays
+    ups = []
+    for up in unique_pixels:
+        ups.append(str(up))
+    unique_pixels = ups
 
     # Segmentation id to export
     import bpy_extras
@@ -529,25 +549,28 @@ def export_meta_data_2_json(
         
         obj = bpy.context.scene.objects[obj_name]
 
-        for keypoint in bpy.context.scene.objects[obj_name].children:
-            if not keypoint.type == "EMPTY":
-                continue
+        if not data[obj_name]['cuboid'] is None:
+            for keypoint in bpy.context.scene.objects[obj_name].children:
+                if not keypoint.type == "EMPTY":
+                    continue
 
-            co_2d = bpy_extras.object_utils.world_to_camera_view(
-                bpy.context.scene, 
-                camera_ob, 
-                keypoint.matrix_world.translation
-            )
+                co_2d = bpy_extras.object_utils.world_to_camera_view(
+                    bpy.context.scene, 
+                    camera_ob, 
+                    keypoint.matrix_world.translation
+                )
 
-            # If you want pixel coords
-            render_scale = scene.render.resolution_percentage / 100
-            render_size = (int(scene.render.resolution_x * render_scale),
-                           int(scene.render.resolution_y * render_scale),
-                        )
-            projected_keypoints.append([co_2d.x * render_size[0],height - co_2d.y * render_size[1]])
- 
-        cuboid = data[obj_name]['cuboid']
-
+                # If you want pixel coords
+                render_scale = scene.render.resolution_percentage / 100
+                render_size = (int(scene.render.resolution_x * render_scale),
+                               int(scene.render.resolution_y * render_scale),
+                            )
+                projected_keypoints.append([co_2d.x * render_size[0],height - co_2d.y * render_size[1]])
+     
+            cuboid = data[obj_name]['cuboid']
+        else:
+            cuboid = None
+            projected_keypoints = [[-1,-1]]
         #check if the object is visible
         visibility = -1
         bounding_box = [-1,-1,-1,-1]
@@ -569,15 +592,15 @@ def export_meta_data_2_json(
         #    visibility = 1
         # else:
         #     visibility = 0 
+        if not cuboid is None:
+            color_int = str((np.array(data[obj_name]['color_seg'])*255).astype(int))
+            if not segmentation_mask is None:
 
-        color_int = (np.array(data[obj_name]['color_seg'])*255).astype(int)
-        visibility = -1
-        if not segmentation_mask is None:
-
-            if color_int in unique_pixels:
-                visibility = 1
-            else:
-                visibility = 0
+                if color_int in unique_pixels:
+                    visibility = 1
+                    # raise()
+                else:
+                    visibility = 0
 
         pos, rt, scale = obj.matrix_world.decompose()
         rt = rt.to_matrix()
@@ -620,11 +643,25 @@ def export_meta_data_2_json(
             'visibility':visibility,
             'bounding_box_minx_maxx_miny_maxy':[minx,maxx,miny,maxy],
         })
-        dict_out['objects'][-1]['segmentation_id']=data[obj_name]["color_seg"]
-
-
+        # dict_out['objects'][-1]['segmentation_id']=data[obj_name]["color_seg"]
+        for key in data[obj_name].keys():
+            if not key in dict_out['objects'][-1]:
+                dict_out['objects'][-1][key] = data[obj_name][key]
+    print(dict_out)
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            if isinstance(obj, np.floating):
+                return float(obj)
+            if isinstance(obj, np.ndarray):
+                a = obj.tolist()
+                for i in range(len(a)): 
+                    a[i] = float(a[i])
+                return a
+            return json.JSONEncoder.default(self, obj)
     with open(filename, 'w+') as fp:
-        json.dump(dict_out, fp, indent=4, sort_keys=True)
+        json.dump(dict_out, fp, indent=4, sort_keys=True,cls=NumpyEncoder)
     # return bounding_box
 
 def render_single_image(
@@ -643,6 +680,8 @@ def render_single_image(
 
     obj_camera = bpy.context.scene.objects['Camera.001']
     
+    # print(look_at_data)
+    # raise()
     if not look_at_data is None:
         obj_camera.location = (
             (look_at_data['eye'][0]),
@@ -659,13 +698,10 @@ def render_single_image(
     bpy.context.scene.render.filepath = f'{path}/{str(i_pos).zfill(3)}_seg.exr'
     
     bpy.ops.render.render(write_still = True)
-    # print(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos+1).zfill(4)}.exr')
-    # raise()    
-    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(i_pos).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
-    os.rename(f'{path}/{str(i_pos).zfill(3)}_flow{str(i_pos).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_flow.exr') 
 
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_depth{str(bpy.context.window.scene.frame_current).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_depth.exr') 
+    os.rename(f'{path}/{str(i_pos).zfill(3)}_flow{str(bpy.context.window.scene.frame_current).zfill(4)}.exr', f'{path}/{str(i_pos).zfill(3)}_flow.exr') 
 
-    # render.engine = args.engine
     bpy.context.window.scene = bpy.data.scenes['Scene']
     bpy.context.scene.frame_set(frame_set)
 

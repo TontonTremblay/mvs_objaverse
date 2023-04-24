@@ -198,6 +198,20 @@ with open("/Users/jtremblay/code/mvs_objaverse/tmp/pose_bones.json", 'w+') as fp
 
 ##### rendering set up #####
 
+for obj in bpy.data.objects:
+    obj.select_set(False)
+
+    if obj.type == 'MESH':
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        break
+# print(bpy.context.active_object.mode)
+
+# raise()
+bpy.ops.object.mode_set(mode='EDIT')
+bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
+bpy.ops.object.mode_set(mode='OBJECT')
+
 make_segmentation_scene()
 
 bpy.ops.wm.save_as_mainfile(filepath=f"/Users/jtremblay/code/mvs_objaverse/bowen.blend")
@@ -215,6 +229,8 @@ bpy.ops.wm.save_as_mainfile(filepath=f"/Users/jtremblay/code/mvs_objaverse/bowen
 # pose.bones[i].size = pose.bones[i].localMatrix.scalePart()
 
 
+
+
 for i in range(keys[-1]+1):
     render_single_image(
         frame_set = i,
@@ -227,9 +243,16 @@ for i in range(keys[-1]+1):
     #     obj.select_set(False)
     # bpy.data.objects["Ch39"].select_set(True)
 
-    bpy.ops.export_mesh.ply(filepath=f"/Users/jtremblay/code/mvs_objaverse/tmp/{str(i).zfill(3)}.ply",
-        # use_materials=False,
-        # axis_up='Z',
+    # bpy.ops.export_mesh.ply(filepath=f"/Users/jtremblay/code/mvs_objaverse/tmp/{str(i).zfill(3)}.ply",
+    #     # use_materials=False,
+    #     # axis_up='Z',
+    #     )
+
+    bpy.ops.export_scene.obj(
+        filepath=f"/Users/jtremblay/code/mvs_objaverse/tmp/{str(i).zfill(3)}.obj",
+        use_materials=False,
+        axis_up='Z',
+        axis_forward="Y",
         )
 
     # raise()
