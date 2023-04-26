@@ -40,6 +40,10 @@ parser.add_argument(
     '--use_model_identifier', action='store_true',
     help='add the name of the folder to the end of the thing.')
 
+parser.add_argument(
+    '--add_floor', action='store_true',
+    help='add_plain_floor')
+
 
 
 
@@ -247,6 +251,7 @@ mesh_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
 center_point, dimensions = calcBoundingBox(mesh_objs)
 print(center_point,dimensions)
 
+
 for obj in bpy.data.objects:
     if obj.type == 'MESH':
         while obj.parent is not None:
@@ -261,7 +266,17 @@ for obj in bpy.data.objects:
         # just need to find that one parent object (coming from the mesh)
         break
 
-
+# print(dimensions)
+# raise()
+ob = bpy.ops.mesh.primitive_plane_add(size=2, 
+    enter_editmode=False, 
+    align='WORLD', 
+    location=(0, 0, -scale * dimensions[2]/2 + 0.001), 
+    scale=(1, 1, 1)
+)
+bpy.context.view_layer.update()
+# scaling_value = random.uniform(1, 3)
+# bpy.context.object.scale = (scaling_value,scaling_value,1)
 
 # white dome light
 # world = bpy.data.worlds['World']
@@ -271,15 +286,15 @@ for obj in bpy.data.objects:
 # bg.inputs[1].default_value = 1.0
 
 
-# add a light above the object 
-bpy.ops.object.light_add(type='AREA')
-light2 = bpy.data.lights['Area']
+# # add a light above the object 
+# bpy.ops.object.light_add(type='AREA')
+# light2 = bpy.data.lights['Area']
 
-light2.energy = 30000
-bpy.data.objects['Area'].location[2] = 0.5
-bpy.data.objects['Area'].scale[0] = 100
-bpy.data.objects['Area'].scale[1] = 100
-bpy.data.objects['Area'].scale[2] = 100
+# light2.energy = 3000
+# bpy.data.objects['Area'].location[1] = -1
+# bpy.data.objects['Area'].scale[0] = 100
+# bpy.data.objects['Area'].scale[1] = 100
+# bpy.data.objects['Area'].scale[2] = 100
 
 
 # Place camera
@@ -301,7 +316,6 @@ scene.collection.objects.link(cam_empty)
 context.view_layer.objects.active = cam_empty
 cam_constraint.target = cam_empty
 
-# bpy.ops.wm.save_as_mainfile(filepath=f'/media/jtremblay/bf64b840-723c-4e19-9dbc-f6a092b66406/home/jtremblay/data/get3d/render_shapenet_data/{os.path.split(os.path.split(args.obj)[0])[1]}.blend')
 
 
 # Function taken from https://github.com/zhenpeiyang/HM3D-ABO/blob/master/my_blender.py
@@ -579,6 +593,9 @@ if args.normal:
     links.new(render_layers.outputs['Normal'], normal_file_output.inputs[0])
     normal_file_output.format.file_format = "OPEN_EXR"
     normal_file_output.base_path = ''
+
+bpy.ops.wm.save_as_mainfile(filepath=f'{path}/scene.blend')
+
 
 for i_pos, pos in enumerate(positions):
 
