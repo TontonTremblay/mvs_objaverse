@@ -268,13 +268,14 @@ for obj in bpy.data.objects:
 
 # print(dimensions)
 # raise()
-ob = bpy.ops.mesh.primitive_plane_add(size=2, 
-    enter_editmode=False, 
-    align='WORLD', 
-    location=(0, 0, -scale * dimensions[2]/2 + 0.001), 
-    scale=(1, 1, 1)
-)
-bpy.context.view_layer.update()
+if opt.add_floor:
+    ob = bpy.ops.mesh.primitive_plane_add(size=2, 
+        enter_editmode=False, 
+        align='WORLD', 
+        location=(0, 0, -scale * dimensions[2]/2 + 0.001), 
+        scale=(1, 1, 1)
+    )
+    bpy.context.view_layer.update()
 # scaling_value = random.uniform(1, 3)
 # bpy.context.object.scale = (scaling_value,scaling_value,1)
 
