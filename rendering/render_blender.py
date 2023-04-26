@@ -587,10 +587,14 @@ if args.normal:
         render_layers = tree.nodes.new('CompositorNodeRLayers')
     
     bpy.context.view_layer.use_pass_normal=True
+    bpy.context.view_layer.cycles.denoising_store_passes=True
 
     normal_file_output = tree.nodes.new(type="CompositorNodeOutputFile")
     normal_file_output.label = 'Normal Output'
-    links.new(render_layers.outputs['Normal'], normal_file_output.inputs[0])
+
+
+
+    links.new(render_layers.outputs['Denoising Normal'], normal_file_output.inputs[0])
     normal_file_output.format.file_format = "OPEN_EXR"
     normal_file_output.base_path = ''
 
