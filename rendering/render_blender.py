@@ -268,7 +268,7 @@ for obj in bpy.data.objects:
 
 # print(dimensions)
 # raise()
-if opt.add_floor:
+if args.add_floor:
     ob = bpy.ops.mesh.primitive_plane_add(size=2, 
         enter_editmode=False, 
         align='WORLD', 
