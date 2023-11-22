@@ -55,7 +55,7 @@ parser.add_argument(
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 parser.add_argument(
-    '--nb_objects_cat', type=int, default=5,
+    '--nb_objects_cat', type=int, default=20,
     help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
 
 parser.add_argument(
@@ -785,7 +785,8 @@ def AddCuboid(obj_parent):
         ob = bpy.context.object
         ob.name = f'{ip}_{obj_parent.name}'
         ob.parent = obj_parent
-
+        ob.hide_render = True
+        ob.hide_viewport = True
     return cuboid
 
 #####################################################################################
@@ -868,29 +869,67 @@ DATA_2_EXPORT = {}
 
 
 if args.input_model == "glb":
-    assets_content = glob.glob(f"{args.folder_assets}/*.{args.input_model}")
+
+
+    def find_glb_files(root_dir):
+        glb_files = []
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            for filename in filenames:
+                if filename.endswith(".glb"):
+                    glb_file_path = os.path.join(dirpath, filename)
+                    glb_files.append(glb_file_path)
+        return glb_files
+
+    # root_dir = os.getcwd()
+
+
+    assets_content = find_glb_files(args.folder_assets)
+    # assets_content = glob.glob(f"{args.folder_assets}/*.{args.input_model}")
 
     for i in range(NB_OBJECTS_LOADED): 
         to_load = assets_content[random.randint(0,len(assets_content)-1)]
         print(to_load)
+
         name = to_load.split("/")[-1].split(".")[0] + "_" + str(i).zfill(2)
         imported_object = bpy.ops.import_scene.gltf(filepath=to_load)
 
+        # check if more than one mesh in object
+        count = 0 
+        mesh_objs = []
         for ob in bpy.context.selected_objects:
             if ob.type == 'MESH':
-                break
+                ob = ob 
+                count += 1 
+                mesh_objs.append(ob)
+        if count > 1: 
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in mesh_objs:
+                obj.select_set(True)
+            bpy.context.view_layer.objects.active = bpy.context.selected_objects[-1]
+            bpy.ops.object.join()
+            ob = bpy.context.active_object
+
+        max_dimension = max(ob.dimensions)
+        if max_dimension <0.001:
+            continue
+        # Calculate the scaling factor to fit the object inside a cube of size 1
+        scale_factor = 1.0 / max_dimension
+
+        # Normalize the scale of the object
+        ob.scale = (scale_factor*0.25, scale_factor*0.25, scale_factor*0.25)
+
         bpy.ops.rigidbody.object_add({'object': ob})
         ob.rigid_body.collision_shape = 'CONVEX_HULL'
         ob.rigid_body.use_margin = True
         ob.rigid_body.collision_margin = 0
+        ob.rigid_body.friction = 100
+        ob.rigid_body.mass = 1000 
 
         ob.name = name
         cuboid3d = AddCuboid(ob)
         DATA_2_EXPORT[ob.name] = {}
         DATA_2_EXPORT[ob.name]['cuboid3d']=cuboid3d
-        # add the cuboid 
-
-# bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
+bpy.ops.wm.save_as_mainfile(filepath=f"{args.save_tmp_blend}")
 # raise()
 
 # load some distractors 
@@ -920,19 +959,19 @@ for ob in bpy.context.scene.objects:
         # bpy.data.scenes['Scene'].rigidbody_world.collection.objects.link(ob)
         # bpy.ops.rigidbody.object_add()
 
-        if 'model' in ob.name:
-            s = random.uniform(0.2,1)
-            s = 1
-            ob.scale = (s,s,s)
-            bpy.ops.rigidbody.object_add({'object': ob})
-            ob.rigid_body.collision_shape = 'CONVEX_HULL'
-            ob.rigid_body.use_margin = True
-            ob.rigid_body.collision_margin = 0
+        # if 'model' in ob.name:
+        #     s = random.uniform(0.2,1)
+        #     s = 1
+        #     ob.scale = (s,s,s)
+        #     bpy.ops.rigidbody.object_add({'object': ob})
+        #     ob.rigid_body.collision_shape = 'CONVEX_HULL'
+        #     ob.rigid_body.use_margin = True
+        #     ob.rigid_body.collision_margin = 0
 
-            # bpy.ops.rigidbody.objects_add()
-            # bpy.context.object.rigid_body.collision_shape = 'BOX'
-        else:
-            obj_to_export.append(ob.name)
+        #     # bpy.ops.rigidbody.objects_add()
+        #     # bpy.context.object.rigid_body.collision_shape = 'BOX'
+        # else:
+        #     obj_to_export.append(ob.name)
 
 # add some boxes
 
@@ -1243,7 +1282,10 @@ for i_pos, look_data in enumerate(look_at_trans):
     # print(look_data)
 
     bpy.context.window.scene = bpy.data.scenes['segmentation']
-    obj_camera = bpy.context.scene.objects['Camera.001']
+    for key in bpy.context.scene.objects.keys():
+        if "Camera" in key:
+            obj_camera = bpy.context.scene.objects[key]
+            break
     obj_camera.location = (
         (look_data['eye'][0]),
         (look_data['eye'][1]),

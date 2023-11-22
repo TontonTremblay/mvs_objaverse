@@ -5,6 +5,7 @@ import mathutils
 import numpy as np
 import json 
 import random 
+import glob 
 
 parser = argparse.ArgumentParser(description='Renders given obj file by rotation a camera around it.')
 parser.add_argument(
@@ -44,7 +45,11 @@ parser.add_argument(
     '--add_floor', action='store_true',
     help='add_plain_floor')
 
-
+parser.add_argument(
+    '--assets_hdri',
+    default = None,
+    help = "Path to a set of hdr to select randomly for illumination."
+    )
 
 
 parser.add_argument(
@@ -61,6 +66,11 @@ args = parser.parse_args(argv)
 context = bpy.context
 scene = bpy.context.scene
 render = bpy.context.scene.render
+
+# bpy.ops.object.delete()
+# bpy.ops.objects['Light'].delete()
+# bpy.data.objects['Light'].select_set(True)
+# bpy.ops.object.delete()
 
 render.engine = args.engine
 render.image_settings.color_mode = 'RGBA'  # ('RGB', 'RGBA', ...)
@@ -112,6 +122,10 @@ def enable_cuda_devices():
 enable_cuda_devices()
 context.active_object.select_set(True)
 bpy.ops.object.delete()
+
+bpy.data.objects['Light'].select_set(True)
+bpy.ops.object.delete()
+
 
 # Import textured mesh
 bpy.ops.object.select_all(action='DESELECT')
@@ -279,23 +293,36 @@ if args.add_floor:
 # scaling_value = random.uniform(1, 3)
 # bpy.context.object.scale = (scaling_value,scaling_value,1)
 
-# white dome light
-# world = bpy.data.worlds['World']
-# world.use_nodes = True
-# bg = world.node_tree.nodes['Background']
+# HDR LIGHT
+if not args.assets_hdri is None:
+    world = bpy.data.worlds['World']
+    world.use_nodes = True
+    bg = world.node_tree.nodes['Background']
+
+    node_environment = world.node_tree.nodes.new('ShaderNodeTexEnvironment')
+    # Load and assign the image to the node property
+    skyboxes = glob.glob(f'{args.assets_hdri}/*.hdr')
+    skybox_random_selection = skyboxes[random.randint(0,len(skyboxes)-1)]
+
+    node_environment.image = bpy.data.images.load(skybox_random_selection) # Relative path
+    # node_environment.location = -300,0
+
+    world.node_tree.links.new(node_environment.outputs["Color"], bg.inputs["Color"])
+
+else:
+
 # bg.inputs[0].default_value[:3] = (1, 1, 1)
 # bg.inputs[1].default_value = 1.0
 
+    # # add a light above the object 
+    bpy.ops.object.light_add(type='AREA')
+    light2 = bpy.data.lights['Area']
 
-# # add a light above the object 
-# bpy.ops.object.light_add(type='AREA')
-# light2 = bpy.data.lights['Area']
-
-# light2.energy = 3000
-# bpy.data.objects['Area'].location[1] = -1
-# bpy.data.objects['Area'].scale[0] = 100
-# bpy.data.objects['Area'].scale[1] = 100
-# bpy.data.objects['Area'].scale[2] = 100
+    light2.energy = 3000
+    bpy.data.objects['Area'].location[1] = -1
+    bpy.data.objects['Area'].scale[0] = 100
+    bpy.data.objects['Area'].scale[1] = 100
+    bpy.data.objects['Area'].scale[2] = 100
 
 
 # Place camera
