@@ -20,6 +20,7 @@ python rendering/render_all_models.py --save_folder /home/jtremblay/code/mvs_obj
 The output from the script is compatible with instant-ngp. And here is a sample for the mugs: 
 ![renders](https://i.imgur.com/CcdGXJL.jpg)
 
+You can also pass a `--assets_hdri` to render with a more photorealistic feel. See below for downloading assets.  
 
 # Animations 
 Maybe you want to animate some renders e.g., 360 view. 
