@@ -570,7 +570,20 @@ def export_meta_data_2_json(
             cuboid = data[obj_name]['cuboid']
         else:
             cuboid = None
-            projected_keypoints = [[-1,-1]]
+            co_2d = bpy_extras.object_utils.world_to_camera_view(
+                bpy.context.scene, 
+                camera_ob, 
+                obj.matrix_world.translation
+            )
+
+            # If you want pixel coords
+            render_scale = scene.render.resolution_percentage / 100
+            render_size = (int(scene.render.resolution_x * render_scale),
+                           int(scene.render.resolution_y * render_scale),
+                        )
+            projected_keypoints.append([co_2d.x * render_size[0],height - co_2d.y * render_size[1]])
+     
+            # projected_keypoints = [[-1,-1]]
         #check if the object is visible
         visibility = -1
         bounding_box = [-1,-1,-1,-1]
@@ -585,13 +598,8 @@ def export_meta_data_2_json(
         maxy = max(a[:,1])
 
         # Not working
-        # if (minx>0 and minx<width and miny>0 and miny<height ) or\
-        #    (maxx>0 and maxx<width and maxy>0 and maxy<height ) or\
-        #    (minx>0 and minx<width and maxy>0 and maxy<height ) or\
-        #    (maxx>0 and maxx<width and miny>0 and miny<height ):
-        #    visibility = 1
-        # else:
-        #     visibility = 0 
+
+
         if not cuboid is None:
             color_int = str((np.array(data[obj_name]['color_seg'])*255).astype(int))
             if not segmentation_mask is None:
@@ -601,7 +609,14 @@ def export_meta_data_2_json(
                     # raise()
                 else:
                     visibility = 0
-
+        else:
+            if (minx>0 and minx<width and miny>0 and miny<height ) or\
+               (maxx>0 and maxx<width and maxy>0 and maxy<height ) or\
+               (minx>0 and minx<width and maxy>0 and maxy<height ) or\
+               (maxx>0 and maxx<width and miny>0 and miny<height ):
+               visibility = 1
+            else:
+                visibility = 0 
         pos, rt, scale = obj.matrix_world.decompose()
         rt = rt.to_matrix()
         trans_matrix_export = []

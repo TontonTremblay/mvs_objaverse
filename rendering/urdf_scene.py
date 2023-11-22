@@ -20,7 +20,15 @@ import random
 import pyrr 
 import scipy 
 from utils import * 
+import argparse
 
+parser = argparse.ArgumentParser(description='Renders given obj file by rotation a camera around it.')
+parser.add_argument(
+    '--blend_file', default=None,
+    help='skip the scene set up')
+
+argv = sys.argv[sys.argv.index("--") + 1:]
+opt = parser.parse_args(argv)
 
 def add_material(name,path):
 
@@ -100,8 +108,9 @@ bpy.context.scene.cycles.use_denoising = True
 urdf_content_path = "/Users/jtremblay/code/yourdfpy/robot/kitchen_urdf/"
 kitchen = URDF.load(f"{urdf_content_path}/kitchen.urdf")
 
-random.seed(100101)
-np.random.seed(100101)
+s = 190191
+random.seed(s)
+np.random.seed(s)
 
 NB_FRAMES = 300
 
@@ -112,22 +121,36 @@ children_structure = {}
 parent_structure = {}
 
 
+
 for joint_name in kitchen.joint_names:
     j = kitchen.joint_map[joint_name]
+    if not j.type == 'fixed':
+        print(joint_name,j.type,j.origin)
+
     data_structure[joint_name] = {
         'parent':j.parent,
         'child':j.child
     }
+
     if j.parent in children_structure:
         children_structure[j.parent].append(j.child)
     else:
         children_structure[j.parent]=[j.child]
     parent_structure[j.child]=j.parent
-    if 'range' in j.child:
-        print(j.child,'is child to',j.parent)
+    # if 'range' in j.child:
+        # print(j.child,'is child to',j.parent)
     if not j.limit is None: 
         # print(j.limit)
         cfg_start[joint_name] = random.uniform(j.limit.lower,j.limit.upper)
+
+
+
+
+
+
+
+
+
 # raise()
 # print(data_structure)
 
@@ -204,8 +227,16 @@ for link in kitchen.link_map.keys():
     for visual in link.visuals:
 
         # TODO remove this> 
-        if not 'range' in link_name:
-            continue
+
+        # if not 'wall_cabinet_2' in link_name:
+        #     continue
+
+
+        # if not 'refrigerator' in link_name:
+        #     continue
+
+        # if not 'range' in link_name:
+        #     continue
 
         bpy.ops.object.select_all(action='DESELECT')
         if not visual.geometry.mesh is None:
@@ -326,7 +357,187 @@ for link in kitchen.link_map.keys():
 
 bpy.context.view_layer.update()
 
+###### UPDATE THE KITCHEN to 0,0,0
+cfg = {}
+for link in values_to_render.keys():
+    cfg[link] = values_to_render[link][0]
 
+kitchen.update_cfg(cfg)
+
+for link in link2blender.keys():
+    trans = kitchen.get_transform(link)
+    obj = link2blender[link]
+    
+    obj.location.x = trans[0][-1]
+    obj.location.y = trans[1][-1]
+    obj.location.z = trans[2][-1]
+
+    # print(trans)
+
+    matrix = pyrr.Matrix44(trans).matrix33
+    # print(matrix)
+    # matrix = matrix * pyrr.Matrix33.from_x_rotation(-np.pi/2)
+    obj.rotation_mode = 'QUATERNION'
+    obj.rotation_quaternion.x = matrix.quaternion.x
+    obj.rotation_quaternion.y = matrix.quaternion.y
+    obj.rotation_quaternion.z = matrix.quaternion.z
+    obj.rotation_quaternion.w = matrix.quaternion.w
+
+bpy.context.view_layer.update()
+
+
+###### add the link positions. 
+
+for joint_name in kitchen.joint_names:
+    j = kitchen.joint_map[joint_name]
+    if not j.type == 'fixed':
+        if 'refrigerator' in joint_name:
+            print(joint_name,j.type,j.origin)
+        # get the obj in blender 
+        ob_parent = bpy.data.objects[j.parent]
+        # add empty 
+
+        bpy.ops.object.empty_add(radius=0.05,
+            location=(j.origin[0][-1],j.origin[1][-1],j.origin[2][-1])
+        )
+        ob_joint = bpy.context.object
+        if j.type == 'prismatic':
+            ob_joint.name = f"joint_min_pri_{j.name}"
+        else:
+            ob_joint.name = f"joint_min_rev_{j.name}"
+
+        # ob_joint.parent = ob
+        add_annotation(ob_joint,empty=True)
+        # print(j.origin[:3])
+        # t = np.array(j.origin)[:3,:3]
+
+        # mat = mathutils.Matrix(t).to_euler()
+        # print(mat)
+
+        ob_joint.rotation_mode = 'AXIS_ANGLE'
+        # ob_joint.rotation_euler[0] = j.axis[0]*(math.pi/180.0)
+        # ob_joint.rotation_euler[1] = j.axis[1]*(math.pi/180.0)
+        # ob_joint.rotation_euler[2] = j.axis[2]*(math.pi/180.0) 
+        
+        ob_joint.rotation_axis_angle[0] = j.axis[0]
+        ob_joint.rotation_axis_angle[1] = j.axis[1]
+        ob_joint.rotation_axis_angle[2] = j.axis[2]
+        # ob_joint.rotation_axis_angle[3] = j.limit.lower
+        # print(ob_joint.rotation_axis_angle[3]) 
+
+
+        # add the limit
+        if j.type == 'prismatic':
+            if j.axis[0] > 0 or j.axis[0] < 0 : 
+                bpy.ops.object.empty_add(radius=0.05,
+                    location=(j.axis[0] * j.limit.upper,0,0)
+                )
+            elif j.axis[1] > 0 or j.axis[1] < 0 : 
+                bpy.ops.object.empty_add(radius=0.05,
+                    location=(0,j.axis[1] * j.limit.upper,0)
+                )
+            elif j.axis[2] > 0 or j.axis[2] < 0 : 
+                bpy.ops.object.empty_add(radius=0.05,
+                    location=(0,0,j.axis[2] * j.limit.upper)
+                )
+            ob_joint.parent = ob_parent
+
+            ob_joint_max = bpy.context.object
+            ob_joint_max.name = f"joint_max_pri_{j.name}"
+            ob_joint_max.parent = ob_joint
+            add_annotation(ob_joint_max,empty=True)
+
+        # find width and/or height
+        if j.type == 'revolute':
+            ob_child = bpy.data.objects[j.child]
+            #find size
+            print(ob_child.name)
+            to_check_size =[]
+            for ob in bpy.data.objects:
+                if ob_child.name in ob.name and ob.type=="MESH":
+                    to_check_size.append(ob)
+                    print(' ',ob.name)
+            def get_dim(mesh_objs):
+                corners = []
+                for ob in mesh_objs:
+                    print(ob.name,ob.matrix_world)
+                    if not ob.type == "MESH":
+                        continue
+                    ob.select_set(True)
+                    bpy.context.view_layer.objects.active = ob
+                    bpy.context.view_layer.update()
+
+                    bbox_corners = [ob.matrix_world @ Vector(corner)  for corner in ob.bound_box]
+                    # bbox_corners = [Vector(corner)  for corner in ob.bound_box]
+                    
+                    for corn in bbox_corners:
+                        corners.append([corn.x,corn.y,corn.z])
+
+                corners = np.array(corners)
+
+                # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])))
+                # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])))
+                mina = [np.min(corners[:,0]),np.min(corners[:,1]),np.min(corners[:,2])]
+                maxb = [np.max(corners[:,0]),np.max(corners[:,1]),np.max(corners[:,2])]
+                # center_point = Vector(((minA.x + maxB.x)/2, (minA.y + maxB.y)/2, (minA.z + maxB.z)/2))
+                center_point = Vector(((mina[0] + maxb[0])/2, (mina[1] + maxb[1])/2, (mina[2] + maxb[2])/2))
+                # bpy.ops.mesh.primitive_ico_sphere_add(scale=(0.1,0.1,0.1),location=(center_point))
+                # center_point = 
+                dimensions =  Vector((maxb[0] - mina[0], maxb[1] - mina[1], maxb[2] - mina[2]))
+                return {"dim":dimensions,"corners":corners,'minmax':[mina,maxb]}
+            if len(to_check_size)==0:
+                x,y,z = 1,1,1
+                r = None
+            else:
+                r = get_dim(to_check_size)
+                x,y,z = r['dim']
+            # print(j.name,x,y,z)
+
+            # dot product
+            def project_on_line(point, line_point, line_axis):
+                # convert inputs to numpy arrays for ease of computation
+                point = np.array(point)
+                line_point = np.array(line_point)
+                line_axis = np.array(line_axis)
+
+                # compute the projection of the point onto the line
+                projection = line_point + np.dot(point - line_point, line_axis) * line_axis
+
+                # convert the projection back to a tuple for ease of use
+                return tuple(projection)
+
+            if not r is None:
+                all_ = []
+                for ip, p in enumerate(r['corners']):
+                    all_.append(project_on_line(p,
+                        ob_parent.matrix_world @ Vector([j.origin[0][-1],j.origin[1][-1],j.origin[2][-1]]),
+                        j.axis))
+                    print(p, "->",all_[-1])
+
+                ps = np.array(all_)
+                # print(p, "->",ps)
+            else:
+                ps = np.array([[1,1,1]])
+
+            ob_joint.location.x = np.min(ps[:,0])
+            ob_joint.location.y = np.min(ps[:,1])
+            ob_joint.location.z = np.min(ps[:,2])
+
+            bpy.ops.object.empty_add(radius=0.05,
+                location=(
+                    np.max(ps[:,0]),
+                    np.max(ps[:,1]),
+                    np.max(ps[:,2])
+                )
+            )
+
+            ob_joint_max = bpy.context.object
+            ob_joint_max.name = f"joint_max_rev_{j.name}"
+            # ob_joint_max.parent = ob_joint
+            add_annotation(ob_joint_max,empty=True)
+
+
+# raise()
 #### create the animation. 
 
 k0 = list(values_to_render.keys())[0]
@@ -402,9 +613,9 @@ for pos in positions_to_render:
     look_at_trans.append({
         'at': look_at,
         'up': [0,0,1],
-        'eye': [pos[0]+3,
-                pos[1]-2,
-                pos[2]+1]              
+        'eye': [pos[0]+2,
+                pos[1]-5,
+                pos[2]+0.5]              
         }
     )
 
