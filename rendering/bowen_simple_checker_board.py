@@ -1,0 +1,218 @@
+import sys
+with open("path.txt") as file:
+    paths = eval(file.read())
+for p in paths:
+    sys.path.insert(0,p)
+import argparse, sys, os, math, re
+import bpy
+from mathutils import Vector, Matrix
+import mathutils
+import numpy as np
+import json 
+import random 
+import glob 
+import threading
+
+
+from yourdfpy import URDF
+import yourdfpy
+import random 
+import pyrr 
+import scipy 
+from utils import * 
+
+
+##### CLEAN BLENDER SCENES ##### 
+# bpy.ops.object.delete()
+# bpy.ops.objects['Light'].delete()
+# bpy.data.objects['Light'].select_set(True)
+# bpy.ops.object.delete()
+
+RESOLUTION = 512
+##### SET THE RENDERER ######
+render = bpy.context.scene.render
+render.engine = "CYCLES"
+render.image_settings.color_mode = 'RGBA'  # ('RGB', 'RGBA', ...)
+render.image_settings.file_format = 'PNG'  # ('PNG', 'OPEN_EXR', 'JPEG, ...)
+render.resolution_x = RESOLUTION
+render.resolution_y = RESOLUTION
+render.resolution_percentage = 100
+bpy.context.scene.cycles.filter_width = 0.01
+# bpy.context.scene.render.film_transparent = True
+
+bpy.context.scene.cycles.device = 'GPU'
+bpy.context.scene.cycles.diffuse_bounces = 1
+bpy.context.scene.cycles.glossy_bounces = 1
+bpy.context.scene.cycles.transparent_max_bounces = 3
+bpy.context.scene.cycles.transmission_bounces = 3
+bpy.context.scene.cycles.samples = 32
+bpy.context.scene.cycles.use_denoising = True
+
+
+##### LOAD THE ANIMATED SCENE #####
+bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[1].default_value = 1
+bpy.context.scene.render.film_transparent = False
+
+
+
+random.seed(100101)
+np.random.seed(100101)
+
+
+
+# get all selected objects
+bpy.ops.object.delete()
+
+
+
+bpy.ops.object.empty_add(radius=0.05,location=(0,0,0))
+add_light_under(bpy.context.selected_objects[0],-3,power=500)
+
+bpy.ops.object.empty_add(radius=0.05,location=(2,2,0))
+add_light_under(bpy.context.selected_objects[0],-1,power=500)
+
+mat_black = bpy.data.materials.new("Black")
+# Activate its nodes
+mat_black.use_nodes = True
+# Get the principled BSDF (created by default)
+principled = mat_black.node_tree.nodes['Principled BSDF']
+# Assign the color
+principled.inputs['Base Color'].default_value = (0.02,0.01,0.06,1)
+
+mat_white = bpy.data.materials.new("White")
+
+# Activate its nodes
+mat_white.use_nodes = True
+# Get the principled BSDF (created by default)
+principled = mat_white.node_tree.nodes['Principled BSDF']
+# Assign the color
+principled.inputs['Base Color'].default_value = (0.96,0.93,0.98,1)
+
+
+# MAKE a grid 
+row = 6
+height = 6
+depth = -12
+for ii in range(row): 
+    for jj in range(height): 
+        bpy.ops.mesh.primitive_cube_add(location=(depth,ii-(row-1)/2,jj-(height-1)/2),scale=(0.5,0.5,0.5))
+        obj = bpy.context.object
+        if ii % 2 == 0: 
+            if jj % 2 == 0: 
+                # make white
+                obj.data.materials.append(mat_white)
+            else:
+                # make black
+                obj.data.materials.append(mat_black)
+
+        else:
+            if jj % 2 == 0: 
+                # make black
+                obj.data.materials.append(mat_black)
+
+            else:
+                # make white
+                obj.data.materials.append(mat_white)
+
+bpy.ops.object.empty_add(radius=0.05,location=(depth,0,0))
+target = bpy.context.selected_objects[0]
+
+look_at_trans = []
+global DATA_EXPORT
+
+
+#### set up the camera 
+context = bpy.context
+scene = bpy.context.scene
+render = bpy.context.scene.render
+
+cam = scene.objects['Camera']
+cam.location = (0,0,0)  # radius equals to 1
+cam.rotation_euler.x = 90 *np.pi/180
+cam.rotation_euler.y = 0
+cam.rotation_euler.z = 90 *np.pi/180 
+
+cam.data.lens = 35
+cam.data.sensor_width = 32
+
+cam_constraint = cam.constraints.new(type='TRACK_TO')
+cam_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+cam_constraint.up_axis = 'UP_Y'
+cam_constraint.target = target
+bpy.context.scene.render.resolution_x = RESOLUTION
+bpy.context.scene.render.resolution_y = RESOLUTION
+
+bpy.context.view_layer.update()
+
+
+cam.location.z = -1
+cam.location.y = -2
+
+cam.keyframe_insert(data_path='location', frame=0)
+cam.keyframe_insert(data_path='rotation_quaternion', frame=0)
+
+cam.location.y = 2
+cam.keyframe_insert(data_path='location', frame=10)
+cam.keyframe_insert(data_path='rotation_quaternion', frame=10)
+
+cam.location.z = 1
+cam.keyframe_insert(data_path='location', frame=20)
+cam.keyframe_insert(data_path='rotation_quaternion', frame=20)
+
+cam.location.y = -2
+cam.keyframe_insert(data_path='location', frame=30)
+cam.keyframe_insert(data_path='rotation_quaternion', frame=30)
+
+cam.location.x = 3
+cam.keyframe_insert(data_path='location', frame=40)
+cam.keyframe_insert(data_path='rotation_quaternion', frame=40)
+
+
+target.keyframe_insert(data_path='location', frame=0)
+target.location.y = -1
+target.keyframe_insert(data_path='location', frame=20)
+target.location.y = 1
+target.keyframe_insert(data_path='location', frame=40)
+
+##### rendering set up #####
+
+make_segmentation_scene()
+
+bpy.ops.wm.save_as_mainfile(filepath=f"/Users/jtremblay/code/mvs_objaverse/checkerboard.blend")
+
+# raise()
+
+
+# armature = Blender.Armature.Get(“Armature”)
+# armobj = Blender.Object.Get(“Armature”)
+# pose = armobj.getPose()
+
+# for i in armature.bones.keys():
+# pose.bones[i].loc = pose.bones[i].localMatrix.translationPart()
+# pose.bones[i].quat = pose.bones[i].localMatrix.rotationPart().toQuat()
+# pose.bones[i].size = pose.bones[i].localMatrix.scalePart()
+
+
+# animate the camera 
+
+
+
+
+
+
+
+
+
+for i in range(40):
+    render_single_image(
+        frame_set = i,
+        look_at_data=None,
+        path = "/Users/jtremblay/code/mvs_objaverse/tmp/",
+        resolution = RESOLUTION,
+        )
+    # raise()
+# print(look_at_trans[0])
+
+
+
+
